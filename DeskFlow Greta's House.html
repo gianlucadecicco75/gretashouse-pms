@@ -323,7 +323,7 @@ tr:hover td{background:var(--surface2)}
     <div class="sidebar-logo">
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/08/2026 · 10:15</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/08/2026 · 10:45</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -10600,6 +10600,8 @@ function apriModificaCellaCalendario(catTypeEnc, ds) {
   var tid = (typeof lstTariffaId!=='undefined' && lstTariffaId) ? lstTariffaId : 'standard';
   var minAttuale = getMinNottiTipo(catType, ds);
   var prezzoAttuale = repRoom ? getPrezzoListinoDiretto(repRoom.id, 2, ds, tid) : 0;
+  var r = getRegoleTipo();
+  var chiusaAttuale = !!(r.chiusure[catType] && r.chiusure[catType][ds]);
   showModal('Modifica ' + catType + ' — ' + fmtDate(ds),
     '<div class="form-grid">'+
       '<div class="form-group full" style="font-size:11.5px;color:var(--text3);background:var(--surface2);border-radius:6px;padding:8px 10px">Le modifiche si applicano a tutte le camere della tipologia <strong>'+catType+'</strong>, nel periodo scelto qui sotto.</div>'+
@@ -10607,6 +10609,10 @@ function apriModificaCellaCalendario(catTypeEnc, ds) {
       '<div class="form-group"><label>Al</label><input type="date" id="cc-al" value="'+ds+'"></div>'+
       '<div class="form-group"><label>Soggiorno minimo (notti)</label><input type="number" id="cc-minnotti" min="1" max="99" value="'+minAttuale+'"></div>'+
       '<div class="form-group"><label>Prezzo (2 persone)</label><input type="number" id="cc-prezzo" min="0" step="1" value="'+(prezzoAttuale||'')+'" placeholder="es. 120"></div>'+
+      '<div class="form-group full" style="display:flex;align-items:center;gap:8px;background:'+(chiusaAttuale?'#fdecea':'var(--surface2)')+';border-radius:6px;padding:8px 10px">'+
+        '<input type="checkbox" id="cc-chiusa" '+(chiusaAttuale?'checked':'')+' style="width:16px;height:16px;margin:0">'+
+        '<label for="cc-chiusa" style="margin:0;cursor:pointer">🔒 Chiudi alla vendita in questo periodo</label>'+
+      '</div>'+
     '</div>',
     '<button class="btn" onclick="closeModal()">Annulla</button>'+
     '<button class="btn btn-primary" onclick="salvaModificaCellaCalendario(\''+catTypeEnc+'\')">Salva</button>'
@@ -10618,10 +10624,24 @@ function salvaModificaCellaCalendario(catTypeEnc) {
   if (!dal || !al || al < dal) { showToast('Controlla le date del periodo (Al non può essere prima di Dal)'); return; }
   var minVal = document.getElementById('cc-minnotti').value;
   var prezzoVal = document.getElementById('cc-prezzo').value;
+  var chiudiVal = document.getElementById('cc-chiusa').checked;
   applyMinNottiCategoria(catTypeEnc, minVal, 'calendario', dal, al);
   applyPrezzoCategoriaPeriodo(catTypeEnc, prezzoVal, dal, al);
+  applyChiusuraCategoriaPeriodo(catTypeEnc, chiudiVal, dal, al);
   closeModal();
   renderCalendario();
+}
+// Imposta (non alterna: forza) lo stato di chiusura di una tipologia su un intervallo di date —
+// usata dalla maschera "Modifica tipologia" del Calendario, dove la chiusura è un checkbox con
+// uno stato esplicito scelto dall'utente, non un pulsante da alternare come altrove.
+function applyChiusuraCategoriaPeriodo(catTypeEnc, chiudi, dal, al){
+  var catType = normCatType(decodeURIComponent(catTypeEnc));
+  var r = getRegoleTipo();
+  if(!r.chiusure[catType]) r.chiusure[catType]={};
+  getDatesInRange(dal, al).forEach(function(ds){
+    if(chiudi) r.chiusure[catType][ds]=true; else delete r.chiusure[catType][ds];
+  });
+  saveRegoleTipo(r);
 }
 // Imposta il prezzo (a 2 persone) di una tipologia su un intervallo di date — si applica a tutte le
 // camere di quella tipologia sfruttando la stessa sincronizzazione già usata dal Listino prezzi.
