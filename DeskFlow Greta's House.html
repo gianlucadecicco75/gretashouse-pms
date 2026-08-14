@@ -323,7 +323,7 @@ tr:hover td{background:var(--surface2)}
     <div class="sidebar-logo">
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 13/08/2026 · 18:05</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/08/2026 · 10:15</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -10552,6 +10552,40 @@ function toggleChiusuraCategoriaPeriodo(catTypeEnc, dal, al, fromPage){
   saveRegoleTipo(r);
   showToast(anyOpen ? ('Tipologia "'+catType+'" chiusa dal '+fmtDate(dal)+' al '+fmtDate(al)) : ('Tipologia "'+catType+'" riaperta dal '+fmtDate(dal)+' al '+fmtDate(al)));
   if(fromPage==='listino') renderListino(); else renderCalendario();
+}
+// Chiude alla vendita, in un solo click, TUTTE le tipologie di camera per l'intero periodo
+// selezionato nel Listino prezzi — usa la stessa "mappa chiusure" del blocco per singola
+// tipologia sopra, applicandola però a ogni tipologia esistente invece che a una sola.
+function chiudiTutteTipologiePeriodo(){
+  if(!lstSelFrom||!lstSelTo){ showToast('Seleziona prima un periodo (Dal → Al)'); return; }
+  var rooms = DB.get('rooms')||[];
+  var tipi = [...new Set(rooms.map(function(r){ return r.type||'Senza tipologia'; }))];
+  if(!tipi.length){ showToast('Nessuna tipologia di camera trovata'); return; }
+  var r = getRegoleTipo();
+  var days = getDatesInRange(lstSelFrom, lstSelTo);
+  tipi.forEach(function(catType){
+    if(!r.chiusure[catType]) r.chiusure[catType]={};
+    days.forEach(function(ds){ r.chiusure[catType][ds]=true; });
+  });
+  saveRegoleTipo(r);
+  showToast('🔒 Vendite chiuse per tutte le '+tipi.length+' tipologie, dal '+fmtDate(lstSelFrom)+' al '+fmtDate(lstSelTo));
+  renderListino();
+}
+// Riapre alla vendita, in un solo click, TUTTE le tipologie di camera per l'intero periodo
+// selezionato nel Listino prezzi.
+function riapriTutteTipologiePeriodo(){
+  if(!lstSelFrom||!lstSelTo){ showToast('Seleziona prima un periodo (Dal → Al)'); return; }
+  var rooms = DB.get('rooms')||[];
+  var tipi = [...new Set(rooms.map(function(r){ return r.type||'Senza tipologia'; }))];
+  var r = getRegoleTipo();
+  var days = getDatesInRange(lstSelFrom, lstSelTo);
+  tipi.forEach(function(catType){
+    if(!r.chiusure[catType]) return;
+    days.forEach(function(ds){ delete r.chiusure[catType][ds]; });
+  });
+  saveRegoleTipo(r);
+  showToast('🔓 Vendite riaperte per tutte le tipologie, dal '+fmtDate(lstSelFrom)+' al '+fmtDate(lstSelTo));
+  renderListino();
 }
 function addDays(s,n){var d=parseLD(s);d.setDate(d.getDate()+n);return fmtD(d);}
 
@@ -23341,6 +23375,10 @@ if(lstSelFrom&&lstSelTo){
      '📅 '+fmtDate(lstSelFrom)+' → '+fmtDate(lstSelTo)+
      '<button class="btn btn-sm" onclick="lstApplyPeriodo()" style="font-size:10px;padding:2px 7px;background:#856404;color:#fff;border-color:#856404">Modifica</button>'+
      '<button class="btn btn-sm" onclick="lstSelFrom=\'\';lstSelTo=\'\';renderListino()" style="font-size:10px;padding:2px 6px" title="Annulla periodo">✕</button>'+
+     '</span>'+
+     '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;margin-left:6px">'+
+     '<button class="btn btn-sm" onclick="chiudiTutteTipologiePeriodo()" style="font-size:11px;padding:2px 8px;background:var(--red);color:#fff;border-color:var(--red)" title="Chiude alla vendita TUTTE le tipologie di camera per l\'intero periodo selezionato, in un solo click">🔒 Chiudi tutte le tipologie</button>'+
+     '<button class="btn btn-sm" onclick="riapriTutteTipologiePeriodo()" style="font-size:11px;padding:2px 8px" title="Riapre alla vendita TUTTE le tipologie di camera per l\'intero periodo selezionato">🔓 Riapri tutte</button>'+
      '</span>'+
      '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;margin-left:6px">'+
      '<input type="date" id="lst-sf" onchange="onLstDateFromChange(this)" style="font-weight:700;font-size:11px;padding:2px 5px;border:.5px solid var(--accent);border-radius:4px;width:115px">'+
