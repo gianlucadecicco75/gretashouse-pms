@@ -334,7 +334,7 @@ tr:hover td{background:var(--surface2)}
     <div class="sidebar-logo">
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 24/08/2026 · 07:39</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 24/08/2026 · 11:14</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -1121,12 +1121,14 @@ async function syncRoomsToSupabase(newRooms) {
   _supabaseSyncingCount++;
   try {
     const m = _syncedMaps.rooms;
-    const newIds = new Set(newRooms.map(r=>r.id));
     const toUpsert = newRooms.map(roomToSupabase).filter(r => m.get(r.id) !== JSON.stringify(r));
-    const toDelete = [...m.keys()].filter(id => !newIds.has(id));
+    // BUG TROVATO E CORRETTO (stesso meccanismo del bug ospiti/prenotazioni qui sotto): questa
+    // funzione calcolava anche le camere "da cancellare" confrontando con la copia locale del
+    // browser — se quella copia non era aggiornata, rischiava di cancellare camere vere. Nel
+    // programma non esiste comunque nessuna azione che elimina fisicamente una camera (solo lo
+    // stato può cambiare), quindi questo controllo non serviva a nulla di utile ed è stato tolto.
     if (toUpsert.length) { const { error } = await supabaseClient.from('rooms').upsert(toUpsert); if (error) throw error; }
-    if (toDelete.length) { const { error } = await supabaseClient.from('rooms').delete().in('id', toDelete); if (error) throw error; }
-    _segnaSincronizzato('rooms', toUpsert, toDelete);
+    _segnaSincronizzato('rooms', toUpsert, []);
   } catch (err) {
     console.error('Errore sincronizzazione camere:', err);
     showToast('⚠ Errore di salvataggio su Supabase — controlla la connessione');
@@ -1141,9 +1143,7 @@ async function syncBookingsToSupabase(newBookings) {
   var _t0 = performance.now();
   try {
     const m = _syncedMaps.bookings;
-    const newIds = new Set(newBookings.map(b=>b.id));
     const toUpsert = newBookings.map(bookingToSupabase).filter(b => m.get(b.id) !== JSON.stringify(b));
-    const toDelete = [...m.keys()].filter(id => !newIds.has(id));
     var _tDiff = performance.now();
     // BUG TROVATO E CORRETTO ("dati del check-in spariti dopo aver ricaricato la pagina, nessun
     // errore visibile"): questa funzione non controllava mai se Supabase rispondeva con un errore —
@@ -1154,6 +1154,13 @@ async function syncBookingsToSupabase(newBookings) {
     // Ora l'invio va a piccoli lotti (come già per gli ospiti) e ogni lotto che fallisce viene
     // segnalato chiaramente, senza essere marcato come sincronizzato — così un nuovo salvataggio lo
     // ritenterà automaticamente invece di darlo per riuscito.
+    // BUG TROVATO E CORRETTO ("prenotazioni vere cancellate dopo un'importazione" — l'incidente di
+    // Villa Aurora): questa funzione calcolava anche le prenotazioni "da cancellare" confrontando con
+    // la copia locale del browser — se quella copia non era aggiornata (esattamente il caso capitato
+    // con l'importazione storico), cancellava da Supabase prenotazioni vere aggiunte nel frattempo da
+    // un altro dispositivo. Nel programma le prenotazioni non vengono MAI cancellate fisicamente
+    // (solo lo stato cambia in "cancellata"), quindi questo controllo non serviva a nulla di utile ed
+    // è stato tolto — ora questa funzione aggiorna soltanto, non cancella mai nulla da sola.
     const LOTTO = 100;
     let falliti = 0;
     const okRows = [];
@@ -1168,8 +1175,7 @@ async function syncBookingsToSupabase(newBookings) {
         console.error('Errore lotto prenotazioni '+i+'-'+(i+lotto.length)+':', errLotto);
       }
     }
-    if (toDelete.length) await supabaseClient.from('bookings').delete().in('id', toDelete);
-    _segnaSincronizzato('bookings', okRows, toDelete);
+    _segnaSincronizzato('bookings', okRows, []);
     var _tTot = performance.now();
     if (_tTot-_t0 > 150) console.log('⏱️ Sync prenotazioni — confronto: '+Math.round(_tDiff-_t0)+' ms, invio: '+Math.round(_tTot-_tDiff)+' ms ('+toUpsert.length+' modificate su '+newBookings.length+' totali)');
     if (falliti > 0) throw new Error(falliti+' prenotazioni su '+toUpsert.length+' non salvate — riprova il salvataggio');
@@ -1189,9 +1195,7 @@ async function syncGuestsToSupabase(newGuests) {
   var _t0g = performance.now();
   try {
     const m = _syncedMaps.guests;
-    const newIds = new Set(newGuests.map(g=>g.id));
     const toUpsert = newGuests.map(guestToSupabase).filter(g => m.get(g.id) !== JSON.stringify(g));
-    const toDelete = [...m.keys()].filter(id => !newIds.has(id));
     var _tDiffG = performance.now();
     // BUG TROVATO E CORRETTO ("importati dall'Excel ma poi non ci sono più"): con un'importazione
     // grande (centinaia di ospiti) l'intero upsert partiva in UNA sola richiesta a Supabase — se quella
@@ -1201,6 +1205,18 @@ async function syncGuestsToSupabase(newGuests) {
     // aspettare che l'invio a Supabase fosse davvero finito. Ora l'invio va a piccoli lotti da 150 alla
     // volta — un lotto che fallisce non fa perdere gli altri già andati a buon fine — e chi chiama questa
     // funzione può ora sapere con certezza quanti ospiti sono stati salvati davvero.
+    // BUG TROVATO E CORRETTO ("email/telefono/ospiti interi spariti dal database"): questa funzione
+    // calcolava anche una lista di ospiti "da cancellare" — chiunque fosse presente nell'ultima copia
+    // sincronizzata ma assente dalla lista appena ricevuta. Il problema: quella lista arriva dalla
+    // copia LOCALE del browser che ha chiamato questa funzione, e se quella copia non era del tutto
+    // aggiornata (es. un altro dispositivo aveva appena aggiunto un ospite, e la notifica in tempo
+    // reale non era ancora arrivata qui), quell'ospite risultava "assente" per errore e veniva
+    // CANCELLATO da Supabase — non solo lasciato con dati vecchi, proprio eliminato. Stesso identico
+    // meccanismo che ha causato la perdita di prenotazioni vere su Villa Aurora durante un'importazione
+    // (vedi commento in importPrenotazioniXLSX). Ora questa funzione NON cancella mai nulla da sola:
+    // aggiorna/aggiunge solo quello che riceve. L'unica cancellazione voluta (il pulsante "Elimina
+    // ospite") ora passa da un comando mirato dedicato, che tocca solo l'ospite scelto — vedi
+    // deleteOspite().
     const LOTTO = 150;
     let falliti = 0;
     const okRows = [];
@@ -1215,8 +1231,7 @@ async function syncGuestsToSupabase(newGuests) {
         console.error('Errore lotto ospiti '+i+'-'+(i+lotto.length)+':', errLotto);
       }
     }
-    if (toDelete.length) await supabaseClient.from('guests').delete().in('id', toDelete);
-    _segnaSincronizzato('guests', okRows, toDelete);
+    _segnaSincronizzato('guests', okRows, []);
     var _tTotG = performance.now();
     if (_tTotG-_t0g > 150) console.log('⏱️ Sync ospiti — confronto: '+Math.round(_tDiffG-_t0g)+' ms, invio: '+Math.round(_tTotG-_tDiffG)+' ms ('+toUpsert.length+' modificati su '+newGuests.length+' totali)');
     if (falliti > 0) throw new Error(falliti+' ospiti su '+toUpsert.length+' non salvati');
@@ -1235,7 +1250,6 @@ async function syncListinoToSupabase(newListino) {
   try {
     const m = _syncedMaps.listino;
     const keyOf = l => l.roomId+'|'+(l.tariffaId||'standard');
-    const newKeys = new Set(newListino.map(keyOf));
     const toUpsert = [];
     newListino.forEach(l => {
       const row = listinoToSupabase(l);
@@ -1243,19 +1257,15 @@ async function syncListinoToSupabase(newListino) {
       row.key = key; // usato solo per _segnaSincronizzato, non viene mandato a Supabase (lo tolgo prima dell'upsert)
       if (m.get(key) !== JSON.stringify(listinoToSupabase(l))) toUpsert.push(row);
     });
-    const toDeleteKeys = [...m.keys()].filter(k => !newKeys.has(k));
+    // BUG TROVATO E CORRETTO (stesso meccanismo del bug ospiti/prenotazioni/camere/tariffe qui sopra):
+    // niente più cancellazioni calcolate dal confronto con la copia locale. L'unica cancellazione vera
+    // (quando si elimina una tariffa) ora usa un comando Supabase mirato — vedi deleteTariffa().
     if (toUpsert.length) {
       const righePulite = toUpsert.map(r => { const {key, ...rest} = r; return rest; });
       const { error } = await supabaseClient.from('listino').upsert(righePulite);
       if (error) throw error;
     }
-    for (const k of toDeleteKeys) {
-      const [roomId, tariffaId] = k.split('|');
-      const { error } = await supabaseClient.from('listino').delete().eq('room_id', roomId).eq('tariffa_id', tariffaId);
-      if (error) throw error;
-    }
     toUpsert.forEach(r => { const {key, ...rest} = r; m.set(key, JSON.stringify(rest)); });
-    toDeleteKeys.forEach(k => m.delete(k));
   } catch (err) {
     console.error('Errore sincronizzazione listino:', err);
     showToast('⚠ Errore di salvataggio su Supabase — controlla la connessione');
@@ -1269,12 +1279,12 @@ async function syncTariffeToSupabase(newTariffe) {
   _supabaseSyncingCount++;
   try {
     const m = _syncedMaps.tariffe;
-    const newIds = new Set(newTariffe.map(t=>t.id));
     const toUpsert = newTariffe.map(tariffaToSupabase).filter(t => m.get(t.id) !== JSON.stringify(t));
-    const toDelete = [...m.keys()].filter(id => !newIds.has(id));
+    // Stesso fix del bug ospiti/prenotazioni/camere qui sopra — niente più cancellazioni calcolate
+    // dal confronto con la copia locale. L'unica cancellazione vera (deleteTariffa) ora usa un
+    // comando Supabase mirato invece di passare da qui.
     if (toUpsert.length) { const { error } = await supabaseClient.from('tariffe').upsert(toUpsert); if (error) throw error; }
-    if (toDelete.length) { const { error } = await supabaseClient.from('tariffe').delete().in('id', toDelete); if (error) throw error; }
-    _segnaSincronizzato('tariffe', toUpsert, toDelete);
+    _segnaSincronizzato('tariffe', toUpsert, []);
   } catch (err) {
     console.error('Errore sincronizzazione tariffe:', err);
     showToast('⚠ Errore di salvataggio su Supabase — controlla la connessione');
@@ -1288,12 +1298,10 @@ async function syncQuotesToSupabase(newQuotes) {
   _supabaseSyncingCount++;
   try {
     const m = _syncedMaps.quotes;
-    const newIds = new Set(newQuotes.map(q=>q.id));
     const toUpsert = newQuotes.map(quoteToSupabase).filter(q => m.get(q.id) !== JSON.stringify(q));
-    const toDelete = [...m.keys()].filter(id => !newIds.has(id));
+    // Stesso fix — nel programma non esiste nessuna cancellazione vera dei preventivi.
     if (toUpsert.length) { const { error } = await supabaseClient.from('quotes').upsert(toUpsert); if (error) throw error; }
-    if (toDelete.length) { const { error } = await supabaseClient.from('quotes').delete().in('id', toDelete); if (error) throw error; }
-    _segnaSincronizzato('quotes', toUpsert, toDelete);
+    _segnaSincronizzato('quotes', toUpsert, []);
   } catch (err) {
     console.error('Errore sincronizzazione preventivi:', err);
     showToast('⚠ Errore di salvataggio su Supabase — controlla la connessione');
@@ -1308,12 +1316,10 @@ async function syncRichiestePreventivoToSupabase(newRichieste) {
   _supabaseSyncingCount++;
   try {
     const m = _syncedMaps.richieste_preventivo;
-    const newIds = new Set(newRichieste.map(r=>r.id));
     const toUpsert = newRichieste.map(richiestaToSupabase).filter(r => m.get(r.id) !== JSON.stringify(r));
-    const toDelete = [...m.keys()].filter(id => !newIds.has(id));
+    // Stesso fix — nel programma non esiste nessuna cancellazione vera delle richieste preventivo.
     if (toUpsert.length) { const { error } = await supabaseClient.from('richieste_preventivo').upsert(toUpsert); if (error) throw error; }
-    if (toDelete.length) { const { error } = await supabaseClient.from('richieste_preventivo').delete().in('id', toDelete); if (error) throw error; }
-    _segnaSincronizzato('richieste_preventivo', toUpsert, toDelete);
+    _segnaSincronizzato('richieste_preventivo', toUpsert, []);
   } catch (err) {
     console.error('Errore sincronizzazione richieste preventivo:', err);
     showToast('⚠ Errore di salvataggio su Supabase — controlla la connessione');
@@ -1328,12 +1334,10 @@ async function syncRoomTypeInfoToSupabase(newInfo) {
   _supabaseSyncingCount++;
   try {
     const m = _syncedMaps.room_type_info;
-    const newIds = new Set(newInfo.map(r=>r.id));
     const toUpsert = newInfo.map(roomTypeInfoToSupabase).filter(r => m.get(r.id) !== JSON.stringify(r));
-    const toDelete = [...m.keys()].filter(id => !newIds.has(id));
+    // Stesso fix — nel programma non esiste nessuna cancellazione vera delle descrizioni tipologie.
     if (toUpsert.length) { const { error } = await supabaseClient.from('room_type_info').upsert(toUpsert); if (error) throw error; }
-    if (toDelete.length) { const { error } = await supabaseClient.from('room_type_info').delete().in('id', toDelete); if (error) throw error; }
-    _segnaSincronizzato('room_type_info', toUpsert, toDelete);
+    _segnaSincronizzato('room_type_info', toUpsert, []);
   } catch (err) {
     console.error('Errore sincronizzazione descrizioni tipologie:', err);
     showToast('⚠ Errore di salvataggio su Supabase — controlla la connessione');
@@ -1348,12 +1352,10 @@ async function syncSiteContentToSupabase(newContent) {
   _supabaseSyncingCount++;
   try {
     const m = _syncedMaps.site_content;
-    const newIds = new Set(newContent.map(r=>r.id));
     const toUpsert = newContent.map(siteContentToSupabase).filter(r => m.get(r.id) !== JSON.stringify(r));
-    const toDelete = [...m.keys()].filter(id => !newIds.has(id));
+    // Stesso fix — nel programma non esiste nessuna cancellazione vera dei contenuti sito.
     if (toUpsert.length) { const { error } = await supabaseClient.from('site_content').upsert(toUpsert); if (error) throw error; }
-    if (toDelete.length) { const { error } = await supabaseClient.from('site_content').delete().in('id', toDelete); if (error) throw error; }
-    _segnaSincronizzato('site_content', toUpsert, toDelete);
+    _segnaSincronizzato('site_content', toUpsert, []);
   } catch (err) {
     console.error('Errore sincronizzazione contenuti sito:', err);
     showToast('⚠ Errore di salvataggio su Supabase — controlla la connessione');
@@ -11066,9 +11068,25 @@ function deleteTariffa(id){
   if(t.length<=1){ showToast('Deve rimanere almeno una tariffa'); return false; }
   if(!confirm('Eliminare la tariffa "'+getTariffaNome(id)+'"?')) return false;
   t=t.filter(function(x){return x.id!==id;});
-  DB.set('tariffe',t);
   var lst=(DB.get('listino')||[]).filter(function(l){return (l.tariffaId||'standard')!==id;});
-  DB.set('listino',lst);
+  // BUG TROVATO E CORRETTO (stesso meccanismo del bug ospiti/prenotazioni/camere qui sopra): questa
+  // eliminazione passava dal confronto generico con la copia locale, che ora non cancella più nulla
+  // da sola — serve quindi un comando mirato esplicito per far sparire davvero la tariffa da Supabase.
+  _tariffeCache = t; DB.set('listino', lst);
+  if (supabaseReady && supabaseClient) {
+    supabaseClient.from('tariffe').delete().eq('id', id).then(function(res){
+      if (res.error) { console.error('Errore eliminazione tariffa:', res.error); showToast('⚠ Tariffa non eliminata su Supabase — riprova'); }
+      else if (typeof _syncedMaps !== 'undefined' && _syncedMaps.tariffe) { _syncedMaps.tariffe.delete(id); }
+    });
+    supabaseClient.from('listino').delete().eq('tariffa_id', id).then(function(res){
+      if (res.error) console.error('Errore eliminazione listino tariffa:', res.error);
+      else if (typeof _syncedMaps !== 'undefined' && _syncedMaps.listino) {
+        Array.from(_syncedMaps.listino.keys()).filter(function(k){ return k.endsWith('|'+id); }).forEach(function(k){ _syncedMaps.listino.delete(k); });
+      }
+    });
+  } else {
+    DB.set('tariffe', t);
+  }
   if(typeof lstTariffaId!=='undefined' && lstTariffaId===id) lstTariffaId='standard';
   return true;
 }
@@ -14633,7 +14651,7 @@ function renderPrenotazioni() {
 
   const filtered = allBookings.filter(b => {
     const q      = prenotazioniFilter.search.toLowerCase();
-    const matchQ = !q || b.guestName.toLowerCase().includes(q) || (b.roomName||'').toLowerCase().includes(q);
+    const matchQ = !q || b.guestName.toLowerCase().includes(q) || (b.roomName||'').toLowerCase().includes(q) || (b.id||'').toLowerCase().includes(q);
     const matchS = !prenotazioniFilter.status || b.status === prenotazioniFilter.status;
     const matchF = !prenotazioniFilter.from || b.checkin >= prenotazioniFilter.from;
     const matchT = !prenotazioniFilter.to   || b.checkin <= prenotazioniFilter.to;
@@ -16676,7 +16694,7 @@ function editPrenotazione(id) {
   if (!b) return;
   const rooms = DB.get('rooms');
   const guests = DB.get('guests');
-  showModal('Modifica prenotazione',
+  showModal(`Modifica prenotazione #${b.id} — ${b.guestName}`,
     `<div class="form-grid">
       <div class="form-group full">
         <label>Ospite</label>
@@ -16989,6 +17007,29 @@ function savePrenotazione(editId) {
   } else {
     const guests = DB.get('guests');
     const g = guests.find(x => x.id === guestId);
+    // BUG TROVATO E CORRETTO ("email/telefono spariti anche dopo averli scritti nella prenotazione"):
+    // se la prenotazione non era collegata a NESSUN ospite (guestId vuoto — capita con quelle
+    // arrivate da importazioni automatiche), il codice cercava comunque un ospite corrispondente,
+    // non lo trovava, e il salvataggio di email/telefono finiva nel vuoto senza nessun errore
+    // visibile. Ora, se manca il collegamento ma hai scritto email o telefono, creiamo al volo un
+    // nuovo ospite e colleghiamo la prenotazione, invece di perdere silenziosamente il dato.
+    if (!g && !guestId && (guestEmail || guestPhone)) {
+      const nomeSenzaOspite = (document.getElementById('f-guestNameDisplay')?.value || document.getElementById('f-guestSearch')?.value || '').trim() || 'Ospite';
+      const nuovoOspiteAlVolo = { id: uid(), name: nomeSenzaOspite, email: guestEmail, phone: guestPhone, notes: '' };
+      guests.push(nuovoOspiteAlVolo);
+      invalidateGuestDatalistCache();
+      if (supabaseReady && supabaseClient) {
+        _guestsCache = guests;
+        supabaseClient.from('guests').upsert(guestToSupabase(nuovoOspiteAlVolo)).then(function(res){
+          if (res.error) { console.error('Errore salvataggio nuovo ospite:', res.error); showToast('⚠ Nuovo ospite non salvato su Supabase — riprova'); }
+          else if (typeof _syncedMaps !== 'undefined' && _syncedMaps.guests) { _syncedMaps.guests.set(nuovoOspiteAlVolo.id, JSON.stringify(guestToSupabase(nuovoOspiteAlVolo))); }
+        });
+      } else {
+        DB.set('guests', guests);
+      }
+      guestName = nomeSenzaOspite;
+      finalGuestId = nuovoOspiteAlVolo.id;
+    } else {
     guestName = g ? g.name : (document.getElementById('f-guestNameDisplay')?.value || document.getElementById('f-guestSearch')?.value || '');
     // Aggiorna email/telefono dell'ospite già in anagrafica se sono stati scritti/corretti qui
     if (g && (guestEmail !== (g.email||'') || guestPhone !== (g.phone||''))) {
@@ -17009,6 +17050,7 @@ function savePrenotazione(editId) {
       } else {
         DB.set('guests', guests);
       }
+    }
     }
   }
   const nomeDisplay = (document.getElementById('f-guestNameDisplay')?.value || '').trim();
@@ -18512,7 +18554,7 @@ function openDettaglioPrenotazione(id) {
   const tabBtn = (key, label, badge) => '<button type="button" data-dett-tabbtn="'+key+'" onclick="dettSwitchTab(this,\''+key+'\')" style="background:none;border:none;border-bottom:3px solid '+(key==='principale'?'var(--accent)':'transparent')+';padding:9px 14px 8px;font-size:13px;font-weight:'+(key==='principale'?'700':'500')+';color:'+(key==='principale'?'var(--accent)':'var(--text2)')+';cursor:pointer;white-space:nowrap">'+label+(badge?' <span style="background:var(--accent);color:#fff;border-radius:9px;padding:1px 6px;font-size:10.5px;margin-left:2px">'+badge+'</span>':'')+'</button>';
   const tabPanel = (key, html, visible) => '<div data-dett-tab="'+key+'" style="display:'+(visible?'block':'none')+'">'+html+'</div>';
 
-  showModal(`Prenotazione — ${b.guestName}`,
+  showModal(`Prenotazione #${b.id} — ${b.guestName}`,
     '<div style="display:flex;flex-wrap:wrap;gap:22px;min-height:420px">' +
 
     // ── SIDEBAR SINISTRA: Periodo / Cliente / Totali ──
@@ -22823,7 +22865,25 @@ function deleteOspite(id) {
   } else {
     if (!confirm('Eliminare questo ospite?')) return;
   }
-  DB.set('guests', DB.get('guests').filter(g => g.id !== id));
+  // BUG TROVATO E CORRETTO ("email/telefono/ospiti spariti del tutto, non solo svuotati"): questa
+  // era l'UNICA cancellazione ospite davvero voluta in tutto il programma, ma passava comunque dal
+  // meccanismo generico DB.set('guests', listaSenzaQuestoOspite) — che confrontava l'intera lista
+  // con quella di Supabase e cancellava lì OGNI ospite mancante dalla copia locale. Se quella copia
+  // non era aggiornata (es. un altro dispositivo aveva appena aggiunto un ospite non ancora arrivato
+  // qui), quell'ospite finiva cancellato per errore insieme a quello voluto — lo stesso meccanismo
+  // che ha causato la perdita di prenotazioni su Villa Aurora qualche giorno fa. Ora la cancellazione
+  // è mirata: tocca SOLO l'ospite scelto, indipendentemente da quanto la copia locale sia aggiornata.
+  const guestsRimasti = DB.get('guests').filter(g => g.id !== id);
+  _guestsCache = guestsRimasti;
+  if (supabaseReady && supabaseClient) {
+    supabaseClient.from('guests').delete().eq('id', id).then(function(res){
+      if (res.error) { console.error('Errore eliminazione ospite:', res.error); showToast('⚠ Ospite non eliminato su Supabase — riprova'); }
+      else if (typeof _syncedMaps !== 'undefined' && _syncedMaps.guests) { _syncedMaps.guests.delete(id); }
+    });
+  } else {
+    DB.set('guests', guestsRimasti);
+  }
+  invalidateGuestDatalistCache();
   showToast('Ospite eliminato');
   renderOspiti();
 }
@@ -23247,7 +23307,7 @@ function renderCalendario() {
   const calSearchQ = (calSearchQuery||'').trim().toLowerCase();
   let calPrimoMatchTrovato = false;
   let calRisultatiCount = 0;
-  if (calSearchQ) { calRisultatiCount = bookings.filter(b => (b.guestName||'').toLowerCase().includes(calSearchQ)).length; }
+  if (calSearchQ) { calRisultatiCount = bookings.filter(b => (b.guestName||'').toLowerCase().includes(calSearchQ) || (b.id||'').toLowerCase().includes(calSearchQ)).length; }
   rooms.forEach(room => {
     const cat = room.type || 'Senza tipologia';
     if (cat !== currentCat) {
@@ -23430,8 +23490,8 @@ function renderCalendario() {
           const garanziaTitle = booking.garanzia && booking.garanzia.tipo === 'carta' ? ' | Garanzia: carta •'+(booking.garanzia.ultime4||'----') : (booking.garanzia && booking.garanzia.tipo === 'bonifico' ? ' | Garanzia: bonifico' : '');
           const fonteI = iconeFonte(booking.source);
 
-          // Evidenzia la prenotazione se il nome corrisponde alla ricerca, attenua le altre
-          const searchMatch = calSearchQ && (booking.guestName||'').toLowerCase().includes(calSearchQ);
+          // Evidenzia la prenotazione se il nome o l'ID corrisponde alla ricerca, attenua le altre
+          const searchMatch = calSearchQ && ((booking.guestName||'').toLowerCase().includes(calSearchQ) || (booking.id||'').toLowerCase().includes(calSearchQ));
           const searchDim = calSearchQ && !searchMatch;
           const searchOutline = searchMatch ? 'outline:3px solid #facc15;outline-offset:-3px;box-shadow:0 0 0 2px rgba(250,204,21,.5) inset;' : '';
           const isFirstMatch = searchMatch && !calPrimoMatchTrovato;
@@ -23528,7 +23588,7 @@ function renderCalendario() {
       </div>
       <div class="flex-row">
         <div style="position:relative;display:flex;align-items:center">
-          <input type="text" id="cal-search" placeholder="🔍 Cerca ospite in calendario…" value="${(calSearchQuery||'').replace(/"/g,'&quot;')}" oninput="clearTimeout(window._calSearchDebounce); window._calSearchFocusRestore=true; calSearchQuery=this.value; window._calSearchDebounce=setTimeout(renderCalendario,220)" style="font-size:13px;padding:7px 32px 7px 12px;border:.5px solid var(--border2);border-radius:8px;width:220px">
+          <input type="text" id="cal-search" placeholder="🔍 Cerca ospite o ID prenotazione…" value="${(calSearchQuery||'').replace(/"/g,'&quot;')}" oninput="clearTimeout(window._calSearchDebounce); window._calSearchFocusRestore=true; calSearchQuery=this.value; window._calSearchDebounce=setTimeout(renderCalendario,220)" style="font-size:13px;padding:7px 32px 7px 12px;border:.5px solid var(--border2);border-radius:8px;width:220px">
           ${calSearchQuery ? '<button onclick="calSearchQuery=\'\'; renderCalendario()" title="Cancella ricerca" style="position:absolute;right:6px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3)">✕</button>' : ''}
         </div>
         ${calSearchQ ? '<span style="font-size:12px;color:'+(calRisultatiCount>0?'var(--text2)':'var(--red)')+';white-space:nowrap">'+(calRisultatiCount>0?calRisultatiCount+' risultat'+(calRisultatiCount===1?'o':'i'):'Nessun risultato')+'</span>' : ''}
