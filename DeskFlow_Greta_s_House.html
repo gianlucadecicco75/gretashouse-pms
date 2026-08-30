@@ -334,7 +334,7 @@ tr:hover td{background:var(--surface2)}
     <div class="sidebar-logo">
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 29/08/2026 · 16:46</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 30/08/2026 · 09:42</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -1091,7 +1091,7 @@ function handleBlobRealtimeChange(payload) {
   if (payload.eventType === 'DELETE') { delete _blobsCache[key]; }
   else { _blobsCache[key] = payload.new.data; }
   if (key === 'settings') {
-    var lbl = document.getElementById('property-name-label');
+    var lbl = document.getElementById('prop-name');
     if (lbl && _blobsCache.settings) lbl.textContent = _blobsCache.settings.propertyName || 'La tua struttura';
   }
   if (isSupabaseSyncing()) return;
@@ -1938,7 +1938,7 @@ async function refreshDatiCorrenti() {
       }
       await Promise.all(jobs);
       invalidateGuestDatalistCache();
-      var lbl = document.getElementById('property-name-label');
+      var lbl = document.getElementById('prop-name');
       if (lbl && _blobsCache.settings) lbl.textContent = _blobsCache.settings.propertyName || 'La tua struttura';
       showToast('✅ Dati aggiornati');
     } catch (err) {
@@ -11867,21 +11867,24 @@ function renderHousekeeping() {
     '</div></div>'+
     '<div class="page-content">'+
 
-    // Date range selector
+    // Selettore giorno singolo (Housekeeping è giornaliero) con freccette avanti/indietro
     '<div style="background:var(--surface2);border:.5px solid var(--border2);border-radius:8px;padding:8px 12px;margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
-    '<input type="date" id="hk-from" value="'+hkFrom+'" style="font-size:11px;padding:3px 6px;border:.5px solid var(--border2);border-radius:5px;width:118px">'+
-    '<span style="font-size:11px;color:var(--text3)">→</span>'+
-    '<input type="date" id="hk-to" value="'+hkTo+'" style="font-size:11px;padding:3px 6px;border:.5px solid var(--border2);border-radius:5px;width:118px">'+
-    '<button class="btn btn-primary btn-sm" style="font-size:11px;padding:3px 8px" onclick="hkFrom=document.getElementById(\'hk-from\').value;hkTo=document.getElementById(\'hk-to\').value;renderHousekeeping()">Visualizza</button>'+
+    '<button class="btn btn-sm" style="font-size:14px;padding:3px 10px" onclick="hkSpostaGiorno(-1)" title="Giorno precedente">←</button>'+
+    '<input type="date" id="hk-from" value="'+hkFrom+'" style="font-size:11px;padding:3px 6px;border:.5px solid var(--border2);border-radius:5px;width:130px" onchange="hkFrom=hkTo=this.value;renderHousekeeping()">'+
+    '<button class="btn btn-sm" style="font-size:14px;padding:3px 10px" onclick="hkSpostaGiorno(1)" title="Giorno successivo">→</button>'+
     '<span style="color:var(--border2)">|</span>'+
     '<button class="btn btn-sm" style="font-size:11px;padding:3px 7px" onclick="hkSetPreset(\'today\')">Oggi</button>'+
     '<button class="btn btn-sm" style="font-size:11px;padding:3px 7px" onclick="hkSetPreset(\'tomorrow\')">Domani</button>'+
-    '<button class="btn btn-sm" style="font-size:11px;padding:3px 7px" onclick="hkSetPreset(\'week\')">Sett.</button>'+
-    '<button class="btn btn-sm" style="font-size:11px;padding:3px 7px" onclick="hkSetPreset(\'next3\')">+3gg</button>'+
     '</div>'+
 
     content+
     '</div>';
+}
+
+// Sposta il giorno di Housekeeping avanti/indietro di un giorno con le freccette (n = -1 o +1)
+function hkSpostaGiorno(n) {
+  hkFrom = hkTo = addDays(hkFrom, n);
+  renderHousekeeping();
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -12852,14 +12855,17 @@ function renderRiepilogoPrevRooms() {
     box.innerHTML =
       '<div style="border:1px solid var(--border2);border-radius:8px;padding:10px;background:var(--surface2)">'+
       sel.map(function(r){
-        return '<div style="padding:5px 4px">'+
-          '<div style="display:flex;justify-content:space-between;align-items:center">'+
-          '<span style="font-size:12.5px"><strong>'+(r.qty>1?r.qty+'× ':'')+r.type+'</strong>'+(r.sconto?' <span style="font-size:10px;color:var(--green);font-weight:700">(-'+r.sconto+'%)</span>':'')+'</span>'+
-          '<span style="display:flex;align-items:center;gap:10px">'+
-          '<strong style="font-size:13px;color:var(--accent)">'+fmtCurrency(r.total)+'</strong>'+
+        return '<div style="padding:6px 4px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
+          '<div>'+
+            '<span style="font-size:13px"><strong>'+(r.qty>1?r.qty+'× ':'')+r.type+'</strong>'+(r.sconto?' <span style="font-size:10px;color:var(--green);font-weight:700">(-'+r.sconto+'%)</span>':'')+'</span>'+
+            '<div style="font-size:12.5px;color:var(--text2);font-weight:600;margin-top:2px">'+(r.qty||1)+' camera'+((r.qty||1)>1?'e':'')+' · '+(r.persone||'?')+' person'+(r.persone===1?'a':'e')+' a camera · allestimento '+(r.allestimento||'—')+'</div>'+
+          '</div>'+
+          '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0">'+
+          '<span style="display:flex;align-items:center;gap:2px"><span style="font-size:13px;color:var(--accent)">€</span>'+
+          '<input type="number" step="1" min="0" value="'+(r.prezzoTotaleManuale!=null?r.prezzoTotaleManuale:Math.round(r.total))+'" onchange="modificaPrezzoPrevTipo(\''+encodeURIComponent(r.type)+'\',this.value)" style="width:74px;padding:3px 5px;border:.5px solid var(--border2);border-radius:5px;font-size:13px;font-weight:700;color:var(--accent)"></span>'+
           '<button type="button" class="btn btn-sm" style="padding:2px 8px;color:var(--red);border-color:var(--red-bg)" onclick="rimuoviPrevRoom(\''+r.type.replace(/'/g,"\\'")+'\')" title="Togli dalla selezione">✕</button>'+
           '</span></div>'+
-          '<div style="font-size:11px;color:var(--text3);margin-top:1px">'+(r.qty||1)+' camera'+((r.qty||1)>1?'e':'')+' · '+(r.persone||'?')+' person'+(r.persone===1?'a':'e')+' a camera · allestimento '+(r.allestimento||'—')+'</div>'+
         '</div>';
       }).join('') +
       '<div style="display:flex;justify-content:space-between;padding:8px 4px 2px;font-weight:800;font-size:14px;border-top:1px solid var(--border2);margin-top:4px">'+
@@ -12929,21 +12935,28 @@ function savePreventivo() {
   renderPreventivi();
 }
 
-// Segna quale tipologia, tra quelle proposte nel preventivo, è quella scelta (dal cliente via telefono/email/
-// whatsapp o dalla pagina pubblica di scelta) — la camera specifica verrà assegnata solo alla conferma
-function sceltaCameraPreventivo(quoteId, tipo) {
+// Segna quale/i tipologia/e, tra quelle proposte nel preventivo, sono quelle da confermare —
+// più di una selezionata insieme copre il caso di una famiglia/gruppo con tipologie diverse: alla
+// conferma verranno create tutte le camere spuntate, raggruppate insieme (vedi convertiPreventivo).
+function toggleSelezioneCameraPreventivo(quoteId, tipo) {
   const quotes = DB.get('quotes');
   const qi = quotes.findIndex(x=>x.id===quoteId);
   if (qi<0) return;
   const opt = (quotes[qi].roomOptions||[]).find(o=>o.type===tipo);
   if (!opt) return;
+  const eraSelezionata = opt.selezionata !== false;
+  opt.selezionata = !eraSelezionata;
+  // Ricalcola totale e ospiti in automatico in base alle camere ora spuntate (l'utente può comunque
+  // correggerli a mano subito dopo — vedi campi qc-prezzo/qc-ospiti)
+  const selezionate = (quotes[qi].roomOptions||[]).filter(o=>o.selezionata!==false);
+  quotes[qi].totalPrice = selezionate.reduce((s,o)=>s+(Number(o.total)||0),0);
+  quotes[qi].adults = selezionate.reduce((s,o)=>s+(Number(o.persone)||0),0) || quotes[qi].adults;
+  if (selezionate.length) {
+    quotes[qi].roomType = selezionate[0].type;
+    quotes[qi].tariffaId = selezionate[0].tariffaId||'standard';
+  }
   quotes[qi].roomId = '';
-  quotes[qi].roomName = opt.type||'';
-  quotes[qi].roomType = opt.type||'';
-  quotes[qi].tariffaId = opt.tariffaId||'standard';
-  quotes[qi].totalPrice = opt.total||0;
   DB.set('quotes', quotes);
-  showToast('Tipologia scelta aggiornata: '+opt.type);
   vediPreventivo(quoteId);
 }
 
@@ -12992,7 +13005,6 @@ function vediPreventivo(id) {
       +(linkedGuest ? '🔗 Collegato all\'anagrafica: '+linkedGuest.name : 'Non ancora collegato a un ospite in anagrafica — verrà cercato per nome alla conferma.')
     +'</div>'
     +'<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">'
-      +'<button type="button" class="btn btn-sm" onclick="aggiornaClientePreventivo(\''+id+'\')">💾 Salva modifiche</button>'
       +'<button type="button" class="btn btn-sm" onclick="salvaClientePreventivoInAnagrafica(\''+id+'\')">📇 Salva anche in anagrafica</button>'
       +'<button type="button" class="btn btn-sm" onclick="apriStoricoMessaggiPreventivo(\''+id+'\')">💬 Messaggi'+(q.comunicazioni&&q.comunicazioni.length?' ('+q.comunicazioni.length+')':'')+'</button>'
     +'</div>'
@@ -13013,32 +13025,35 @@ function vediPreventivo(id) {
       ? '<div style="margin-bottom:12px">'
         +(q.clientChosenAt
             ? '<div style="font-size:11.5px;color:var(--green);margin-bottom:6px">✅ Il cliente ha scelto direttamente dal link il '+fmtDate(q.clientChosenAt.slice(0,10))+' — puoi comunque cambiarla qui sotto se serve</div>'
-            : '<div style="font-size:11.5px;color:var(--text2);margin-bottom:6px">Tipologie proposte al cliente — segna quale ha scelto (di default risulta la prima)</div>')
+            : '<div style="font-size:11.5px;color:var(--text2);margin-bottom:6px">Tipologie proposte al cliente — spunta una o più camere da confermare insieme (es. una famiglia con 2 tipologie diverse)</div>')
         +q.roomOptions.map(function(o){
-          const isChosen = o.type === q.roomType;
+          const isChosen = o.selezionata !== false; // di default tutte selezionate (compatibile con i preventivi già esistenti)
           return '<label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1.5px solid '+(isChosen?'var(--accent)':'var(--border)')+';border-radius:7px;margin-bottom:5px;cursor:pointer;background:'+(isChosen?'var(--accent-light)':'')+'">'
-            +'<input type="radio" name="qc-room-opt" style="width:auto" '+(isChosen?'checked':'')+' onchange="sceltaCameraPreventivo(\''+id+'\',\''+o.type.replace(/'/g,"\\'")+'\')">'
-            +'<span style="flex:1;font-size:12.5px"><strong>'+o.type+'</strong></span>'
+            +'<input type="checkbox" style="width:auto" '+(isChosen?'checked':'')+' onchange="toggleSelezioneCameraPreventivo(\''+id+'\',\''+o.type.replace(/'/g,"\\'")+'\')">'
+            +'<span style="flex:1;font-size:12.5px"><strong>'+o.type+'</strong> <span style="color:var(--text3);font-weight:400">· '+(o.persone||'?')+' pers. × '+(o.qty||1)+'</span></span>'
             +'<strong style="font-size:13px">'+fmtCurrency(o.total)+'</strong>'
             +'</label>';
         }).join('')
+        +'<div style="font-size:11px;color:var(--text3);margin-top:4px">Le camere spuntate sono quelle che verranno prenotate insieme alla conferma — il Totale e gli Ospiti qui sotto si aggiornano di conseguenza (puoi comunque correggerli a mano).</div>'
         +'</div>'
       : '')
     +'<table style="width:100%;font-size:13px;border-collapse:collapse">'
-    +'<tr><td style="padding:7px 0;color:var(--text2);width:40%">Tipologia'+(q.roomOptions&&q.roomOptions.length>1?' (scelta)':'')+'</td><td>'+(q.roomType||'—')+'</td></tr>'
+    +'<tr><td style="padding:7px 0;color:var(--text2);width:40%">Tipologia'+(q.roomOptions&&q.roomOptions.length>1?' (scelta)':'')+'</td><td>'+(q.roomOptions&&q.roomOptions.length>1?q.roomOptions.filter(function(o){return o.selezionata!==false;}).map(function(o){return o.type;}).join(', ')||'—':(q.roomType||'—'))+'</td></tr>'
     +'<tr><td style="padding:7px 0;color:var(--text2)">Camera assegnata</td><td>'+(q.roomId ? q.roomName : '<span style="color:var(--text3)">— sarà assegnata alla conferma, in base alla prima libera</span>')+'</td></tr>'
     +'<tr><td style="padding:7px 0;color:var(--text2)">Tariffa</td><td>'+getTariffaNome(q.tariffaId)+'</td></tr>'
     +'<tr><td style="padding:7px 0;color:var(--text2)">Check-in</td><td><input type="date" id="qc-checkin" value="'+q.checkin+'" onchange="document.getElementById(\'qc-notti-live\').textContent=nights(this.value,document.getElementById(\'qc-checkout\').value)" style="padding:5px 8px;border:.5px solid var(--border2);border-radius:6px;font-size:13px"></td></tr>'
     +'<tr><td style="padding:7px 0;color:var(--text2)">Check-out</td><td><input type="date" id="qc-checkout" value="'+q.checkout+'" onchange="document.getElementById(\'qc-notti-live\').textContent=nights(document.getElementById(\'qc-checkin\').value,this.value)" style="padding:5px 8px;border:.5px solid var(--border2);border-radius:6px;font-size:13px"></td></tr>'
     +'<tr><td style="padding:7px 0;color:var(--text2)">Notti</td><td id="qc-notti-live">'+n+'</td></tr>'
-    +'<tr><td style="padding:7px 0;color:var(--text2)">Ospiti</td><td>'+q.adults+' adulti'+(q.children>0?', '+q.children+' bambini':'')+'</td></tr>'
-    +'<tr><td style="padding:7px 0;color:var(--text2)">Totale</td><td><input type="number" id="qc-prezzo" value="'+Number(q.totalPrice||0)+'" step="0.01" style="width:120px;padding:5px 8px;border:.5px solid var(--border2);border-radius:6px;font-weight:700;font-size:13px"></td></tr>'
-    +(q.expiry?'<tr><td style="padding:7px 0;color:var(--text2)">Valido fino al</td><td>'+fmtDate(q.expiry)+'</td></tr>':'')
-    +(q.notes?'<tr><td style="padding:7px 0;color:var(--text2)">Note</td><td>'+q.notes+'</td></tr>':'')
+    +'<tr><td style="padding:7px 0;color:var(--text2)">Ospiti (totale persone)</td><td><input type="number" id="qc-ospiti" min="1" value="'+Number(q.adults||1)+'" step="1" style="width:80px;padding:5px 8px;border:.5px solid var(--border2);border-radius:6px;font-size:13px"> adulti'+(q.children>0?' <span style="color:var(--text3)">+ '+q.children+' bambini</span>':'')+'</td></tr>'
+    +'<tr><td style="padding:7px 0;color:var(--text2)">Totale'+(q.roomOptions&&q.roomOptions.length>1?' complessivo':'')+'</td><td><input type="number" id="qc-prezzo" value="'+Number(q.totalPrice||0)+'" step="0.01" style="width:120px;padding:5px 8px;border:.5px solid var(--border2);border-radius:6px;font-weight:700;font-size:13px"></td></tr>'
+    +'<tr><td style="padding:7px 0;color:var(--text2)">Colazione inclusa</td><td><input type="checkbox" id="qc-colazione" '+(q.colazioneInclusa!==false?'checked':'')+' style="width:auto"></td></tr>'
+    +'<tr><td style="padding:7px 0;color:var(--text2)">Valido fino al</td><td><input type="date" id="qc-scadenza" value="'+(q.expiry||'')+'" style="padding:5px 8px;border:.5px solid var(--border2);border-radius:6px;font-size:13px"></td></tr>'
+    +'<tr><td style="padding:7px 0;color:var(--text2);vertical-align:top">Note</td><td><textarea id="qc-note" rows="2" style="width:100%;padding:5px 8px;border:.5px solid var(--border2);border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box">'+(q.notes||'')+'</textarea></td></tr>'
     +'<tr><td style="padding:7px 0;color:var(--text2)">Disponibilità</td><td>'+dispoLabel+'</td></tr>'
     +'</table>',
     '<button class="btn" onclick="closeModal()">Chiudi</button>'
-    +'<button class="btn btn-primary" onclick="closeModal();inviaPreventivo(\''+id+'\')">📤 Invia email</button>'
+    +'<button class="btn btn-primary" onclick="aggiornaClientePreventivo(\''+id+'\')">💾 Salva modifiche</button>'
+    +'<button class="btn" onclick="closeModal();inviaPreventivo(\''+id+'\')">📤 Invia email</button>'
     +(nonDisponibile?'':'<button class="btn" style="background:var(--amber-bg);color:var(--amber)" onclick="closeModal();metteInOpzionePreventivo(\''+id+'\')">📌 Metti in opzione</button>')
     +'<button class="btn" style="background:var(--green-bg);color:var(--green)" onclick="closeModal();convertiPreventivo(\''+id+'\')">✓ Converti</button>'
   );
@@ -13072,16 +13087,19 @@ function aggiornaClientePreventivo(quoteId) {
   if (duplicato) { showToast('Il numero '+nuovoNum+' è già usato dal preventivo di '+duplicato.clientName+' — scegline un altro'); return; }
   quotes[qi].num = nuovoNum;
 
-  // Prezzo totale — modificabile a mano; se il preventivo ha più tipologie proposte,
-  // aggiorna anche l'importo della tipologia attualmente scelta tra le opzioni
+  // Prezzo totale — modificabile a mano; se il preventivo ha più tipologie proposte, aggiorna
+  // anche l'importo della tipologia scelta (se una sola) o resta un override del totale complessivo
+  // (se più di una è selezionata insieme — vedi toggleSelezioneCameraPreventivo)
   const nuovoPrezzo = parseFloat(document.getElementById('qc-prezzo')?.value);
   if (!isNaN(nuovoPrezzo) && nuovoPrezzo >= 0) {
     quotes[qi].totalPrice = nuovoPrezzo;
-    if (quotes[qi].roomOptions && quotes[qi].roomOptions.length) {
-      const opt = quotes[qi].roomOptions.find(o => o.type === quotes[qi].roomType);
-      if (opt) opt.total = nuovoPrezzo;
-    }
+    const selezionate = (quotes[qi].roomOptions||[]).filter(o=>o.selezionata!==false);
+    if (selezionate.length === 1) selezionate[0].total = nuovoPrezzo;
   }
+
+  // Ospiti (totale persone) — modificabile a mano
+  const nuoviOspiti = parseInt(document.getElementById('qc-ospiti')?.value, 10);
+  if (!isNaN(nuoviOspiti) && nuoviOspiti >= 1) quotes[qi].adults = nuoviOspiti;
 
   // Date del soggiorno — modificabili come il prezzo; validiamo che il check-out sia dopo il check-in
   const nuovoCheckin = document.getElementById('qc-checkin')?.value;
@@ -13095,6 +13113,9 @@ function aggiornaClientePreventivo(quoteId) {
   quotes[qi].clientName = nome;
   quotes[qi].clientEmail = document.getElementById('qc-email')?.value.trim() || '';
   quotes[qi].clientPhone = document.getElementById('qc-telefono')?.value.trim() || '';
+  quotes[qi].colazioneInclusa = !!document.getElementById('qc-colazione')?.checked;
+  quotes[qi].expiry = document.getElementById('qc-scadenza')?.value || '';
+  quotes[qi].notes = document.getElementById('qc-note')?.value.trim() || '';
   if (window._qcRichiamatoGuestId) quotes[qi].guestId = window._qcRichiamatoGuestId;
   DB.set('quotes', quotes);
   window._qcRichiamatoGuestId = null;
@@ -13334,6 +13355,39 @@ function eseguiInvioPreventivo(id, metodo) {
   const subject = encodeURIComponent(subjectRaw);
   const body = encodeURIComponent(bodyRaw);
 
+  // NOVITÀ richiesta da Gian: prima di inviare davvero, mostra un'anteprima del testo (con la
+  // possibilità di correggerlo al volo) — l'invio vero e proprio parte solo dopo aver premuto
+  // "Invia" in quella schermata. Per WhatsApp mostro il testo già con ** convertite in *, per gli
+  // altri canali il testo semplice — è lo stesso testo che verrà davvero usato per l'invio.
+  window._anteprimaInvioPrev = { id: id, metodo: metodo, to: to, subjectRaw: subjectRaw };
+  apriAnteprimaInvioPreventivo(to, subjectRaw, metodo === 'whatsapp' ? bodyWhatsapp : bodyRaw);
+}
+
+// Mostra il testo del preventivo prima dell'invio vero e proprio — modificabile qui per un'ultima
+// correzione al volo. Il pulsante "Invia" richiama confermaInvioPreventivoConTesto(), che esegue
+// l'invio effettivo usando esattamente il testo presente in questa casella in quel momento.
+function apriAnteprimaInvioPreventivo(to, subjectRaw, testo) {
+  showModal('Anteprima messaggio',
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">Controlla il testo prima di inviarlo — puoi ancora correggerlo qui sotto.</div>'
+    +(to?'<div style="font-size:12.5px;margin-bottom:6px"><strong>A:</strong> '+to+'</div>':'')
+    +'<div style="font-size:12.5px;margin-bottom:10px"><strong>Oggetto:</strong> '+subjectRaw.replace(/</g,'&lt;')+'</div>'
+    +'<textarea id="anteprima-testo-invio" rows="16" style="width:100%;font-family:inherit;font-size:13px;padding:10px;box-sizing:border-box;border:.5px solid var(--border2);border-radius:8px">'+testo.replace(/</g,'&lt;')+'</textarea>',
+    '<button class="btn" onclick="closeModal()">↩ Torna indietro</button>'
+    +'<button class="btn btn-primary" onclick="confermaInvioPreventivoConTesto()">📤 Invia</button>'
+  );
+}
+
+// Esegue l'invio vero e proprio, usando il testo (eventualmente corretto) dalla casella di
+// anteprima — replica esattamente la logica per canale che prima stava in eseguiInvioPreventivo.
+function confermaInvioPreventivoConTesto() {
+  const ctx = window._anteprimaInvioPrev;
+  if (!ctx) return;
+  const id = ctx.id, metodo = ctx.metodo, to = ctx.to, subjectRaw = ctx.subjectRaw;
+  const testoArea = document.getElementById('anteprima-testo-invio');
+  const testo = testoArea ? testoArea.value : '';
+  const subject = encodeURIComponent(subjectRaw);
+  const body = encodeURIComponent(testo);
+
   function marcaInviatoEChiudi(msg) {
     const quotes = DB.get('quotes');
     const qi = quotes.findIndex(x=>x.id===id);
@@ -13344,7 +13398,7 @@ function eseguiInvioPreventivo(id, metodo) {
   }
 
   if (metodo === 'copia') {
-    const fullText = (to?'A: '+to+'\n':'')+'Oggetto: '+subjectRaw+'\n\n'+bodyRaw;
+    const fullText = (to?'A: '+to+'\n':'')+'Oggetto: '+subjectRaw+'\n\n'+testo;
     const fallbackCopy = function() {
       const ta = document.createElement('textarea');
       ta.value = fullText;
@@ -13356,29 +13410,30 @@ function eseguiInvioPreventivo(id, metodo) {
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(fullText).then(function(){
-        registraComunicazioneQuote(id, {canale:'copia', oggetto:subjectRaw, testo:bodyRaw, destinatario:to, esito:'copiata'});
+        registraComunicazioneQuote(id, {canale:'copia', oggetto:subjectRaw, testo:testo, destinatario:to, esito:'copiata'});
         marcaInviatoEChiudi('Testo del preventivo copiato negli appunti — incollalo dove preferisci (email, WhatsApp, ecc.)');
       }).catch(function(){
         fallbackCopy();
-        registraComunicazioneQuote(id, {canale:'copia', oggetto:subjectRaw, testo:bodyRaw, destinatario:to, esito:'copiata'});
+        registraComunicazioneQuote(id, {canale:'copia', oggetto:subjectRaw, testo:testo, destinatario:to, esito:'copiata'});
         marcaInviatoEChiudi('Testo del preventivo copiato negli appunti');
       });
     } else {
       fallbackCopy();
-      registraComunicazioneQuote(id, {canale:'copia', oggetto:subjectRaw, testo:bodyRaw, destinatario:to, esito:'copiata'});
+      registraComunicazioneQuote(id, {canale:'copia', oggetto:subjectRaw, testo:testo, destinatario:to, esito:'copiata'});
       marcaInviatoEChiudi('Testo del preventivo copiato negli appunti');
     }
     return;
   }
 
   if (metodo === 'whatsapp') {
-    let phone = (q.clientPhone || '').replace(/[^\d+]/g, '');
+    const q = DB.get('quotes').find(x=>x.id===id);
+    let phone = (q && q.clientPhone || '').replace(/[^\d+]/g, '');
     if (!phone) { showToast('Nessun numero di telefono salvato su questo preventivo'); return; }
     if (phone.startsWith('00')) phone = '+' + phone.slice(2);
     if (!phone.startsWith('+')) phone = '+39' + phone.replace(/^0+/, ''); // assume Italia se manca il prefisso
-    const waText = encodeURIComponent(bodyWhatsapp);
+    const waText = encodeURIComponent(testo);
     window.open('https://wa.me/'+phone.replace('+','')+'?text='+waText, '_blank');
-    registraComunicazioneQuote(id, {canale:'whatsapp', oggetto:subjectRaw, testo:bodyWhatsapp, destinatario:phone, esito:'aperto per invio'});
+    registraComunicazioneQuote(id, {canale:'whatsapp', oggetto:subjectRaw, testo:testo, destinatario:phone, esito:'aperto per invio'});
     marcaInviatoEChiudi('WhatsApp aperto con il preventivo pronto da inviare');
     return;
   }
@@ -13389,13 +13444,14 @@ function eseguiInvioPreventivo(id, metodo) {
     if (!s.supabaseUrl || !s.supabaseKey) { showToast('Configura prima Supabase in Impostazioni'); return; }
     showToast('Invio in corso…');
     const functionUrl = s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/invio-ricevuta';
+    const q = DB.get('quotes').find(x=>x.id===id);
     fetch(functionUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+s.supabaseKey, 'apikey': s.supabaseKey },
-      body: JSON.stringify({ smtpEmail: s.emailInvioPromemoria, smtpPassword: s.passwordInvioPromemoria, to: to, toName: q.clientName, subject: subjectRaw, message: bodyRaw })
+      body: JSON.stringify({ smtpEmail: s.emailInvioPromemoria, smtpPassword: s.passwordInvioPromemoria, to: to, toName: q ? q.clientName : '', subject: subjectRaw, message: testo })
     }).then(function(res){ return res.json(); }).then(function(data){
       if (!data.ok) throw new Error(data.errore || 'Invio non riuscito');
-      registraComunicazioneQuote(id, {canale:'gmailreale', oggetto:subjectRaw, testo:bodyRaw, destinatario:to, esito:'inviata realmente'});
+      registraComunicazioneQuote(id, {canale:'gmailreale', oggetto:subjectRaw, testo:testo, destinatario:to, esito:'inviata realmente'});
       marcaInviatoEChiudi('Preventivo inviato dall\'email della struttura a '+to);
     }).catch(function(err){
       console.error('Errore invio Gmail:', err);
@@ -13405,7 +13461,7 @@ function eseguiInvioPreventivo(id, metodo) {
   }
 
   window.open('mailto:'+to+'?subject='+subject+'&body='+body, '_blank');
-  registraComunicazioneQuote(id, {canale:'mailto', oggetto:subjectRaw, testo:bodyRaw, destinatario:to, esito:'aperto per invio'});
+  registraComunicazioneQuote(id, {canale:'mailto', oggetto:subjectRaw, testo:testo, destinatario:to, esito:'aperto per invio'});
   marcaInviatoEChiudi('Preventivo pronto per l\'invio');
 }
 
@@ -13522,7 +13578,7 @@ function convertiPreventivo(id) {
   // della conferma, le prime camere libere di ciascuna tipologia richiesta, nella quantità scelta —
   // così teniamo conto delle prenotazioni arrivate nel frattempo dopo l'invio del preventivo.
   // Se il preventivo ha più periodi di date, ripetiamo la ricerca per ciascun periodo separatamente.
-  const periodiConv = (q.periodi && q.periodi.length) ? q.periodi : [{checkin:q.checkin, checkout:q.checkout, roomOptions: (q.roomOptions && q.roomOptions.length) ? q.roomOptions : (q.roomType ? [{type:q.roomType, tariffaId:q.tariffaId||'standard', qty:1, ppn:0, total:q.totalPrice}] : [])}];
+  const periodiConv = (q.periodi && q.periodi.length) ? q.periodi.map(function(p){ return { checkin:p.checkin, checkout:p.checkout, roomOptions:(p.roomOptions||[]).filter(function(o){return o.selezionata!==false;}) }; }) : [{checkin:q.checkin, checkout:q.checkout, roomOptions: (q.roomOptions && q.roomOptions.length) ? q.roomOptions.filter(function(o){return o.selezionata!==false;}) : (q.roomType ? [{type:q.roomType, tariffaId:q.tariffaId||'standard', qty:1, ppn:0, total:q.totalPrice}] : [])}];
   if (!periodiConv.some(function(p){return p.roomOptions.length;})) { showToast('Nessuna tipologia indicata sul preventivo'); return; }
 
   const tuttiRooms = DB.get('rooms');
@@ -28265,7 +28321,7 @@ function saveImpostazioni() {
   s.stuUser       = document.getElementById('s-stuUser')?.value || '';
   s.stuPass       = document.getElementById('s-stuPass')?.value || '';
   DB.setObj('settings', s);
-  var propLbl = document.getElementById('property-name-label');
+  var propLbl = document.getElementById('prop-name');
   if (propLbl) propLbl.textContent = s.propertyName || 'La tua struttura';
   if (s.supabaseUrl && s.supabaseKey && !supabaseReady) {
     showToast('Impostazioni salvate — ricarica la pagina per attivare la connessione a Supabase');
@@ -30289,6 +30345,9 @@ async function corrLoadData(){
   if(!corrState.uscite) corrState.uscite = [];
   if(!corrState.chiusure) corrState.chiusure = {};
   if(!corrState.log) corrState.log = [];
+  // Il nome struttura non si rinomina più qui: viene sempre preso dal vero nome impostato in
+  // Impostazioni → Struttura, così i due posti non possono più disallinearsi.
+  corrState.hotelName = DB.getObj('settings', {}).propertyName || 'La tua struttura';
 }
 
 let corrLastSaveError = '';
@@ -30401,12 +30460,10 @@ function corrRenderTopbar(){
     <div class="brand-row">
       <div>
         <span class="thin">Registro corrispettivi</span>
-        <h1 class="brand-name">${corrEscapeHtml(corrState.hotelName)} <button id="quickRename" title="Cambia nome struttura" style="background:none;border:none;color:rgba(255,255,255,.85);font-size:14px;cursor:pointer;vertical-align:middle;font-family:inherit;text-decoration:underline;">rinomina</button></h1>
+        <h1 class="brand-name">${corrEscapeHtml(corrState.hotelName)}</h1>
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
         <span class="status-pill" id="statusPill">${corrRenderStatusText()}</span>
-        <button class="btn ghost small" id="saveNowBtn" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.35)">${corrIsSaving? 'Salvataggio...' : 'Salva ora'}</button>
-        <button class="btn ghost small" id="refreshBtn" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.35)">Aggiorna</button>
       </div>
     </div>
     <nav class="tabs">
@@ -31478,7 +31535,7 @@ function corrRenderImpostazioniTab(){
     <div class="grid" style="grid-template-columns:1fr 1fr;max-width:600px;">
       <div>
         <label>Nome struttura</label>
-        <input type="text" id="setHotelName" value="${corrEscapeHtml(corrState.hotelName)}">
+        <div style="padding:8px 0;color:var(--muted,#666)">${corrEscapeHtml(corrState.hotelName)} <span style="font-size:11px">(preso da Impostazioni → Struttura, non modificabile qui)</span></div>
       </div>
       <div>
         <label>Fondo cassa di partenza (se non ci sono chiusure precedenti)</label>
@@ -31526,23 +31583,6 @@ function corrAttachHandlers(){
   document.querySelectorAll('nav.tabs button').forEach(b=>{
     b.onclick = ()=>{ corrTab=b.dataset.corrTab; corrEditingId=null; corrRender(); };
   });
-  const refreshBtn = document.getElementById('refreshBtn');
-  if(refreshBtn) refreshBtn.onclick = async ()=>{
-    if(corrIsDirty && !confirm('Ci sono modifiche non ancora salvate. Aggiornando perderesti quelle modifiche. Continuare comunque?')) return;
-    corrStatusMsg='aggiornamento...'; corrRender();
-    await corrLoadData();
-    corrStatusMsg='dati aggiornati'; corrIsDirty=false; corrRender();
-  };
-  const renameBtn = document.getElementById('quickRename');
-  if(renameBtn) renameBtn.onclick = async ()=>{
-    const newName = prompt('Nome della struttura:', corrState.hotelName);
-    if(newName && newName.trim()){
-      corrState.hotelName = newName.trim();
-      await corrPersist('nome aggiornato');
-    }
-  };
-  const saveNowBtn = document.getElementById('saveNowBtn');
-  if(saveNowBtn) saveNowBtn.onclick = ()=> corrPersist('salvato');
 
   if(corrTab==='nuovo') corrAttachNuovoHandlers();
   if(corrTab==='registro') corrAttachRegistroHandlers();
@@ -31730,7 +31770,6 @@ function corrAttachChiusuraHandlers(){
 
 function corrAttachImpostazioniHandlers(){
   document.getElementById('saveSettings').onclick = async ()=>{
-    corrState.hotelName = document.getElementById('setHotelName').value || 'Hotel';
     corrState.fondoCassaIniziale = Number(document.getElementById('setFondo').value)||0;
     await corrPersist('impostazioni salvate');
   };
