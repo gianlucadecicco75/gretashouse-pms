@@ -334,7 +334,7 @@ tr:hover td{background:var(--surface2)}
     <div class="sidebar-logo">
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 31/08/2026 · 05:40</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 01/09/2026 · 06:00</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -25612,6 +25612,167 @@ function lstLoadPeriod(dal,al){lstSelFrom=dal;lstSelTo=al;globalDate=dal;listino
 function lstOnInput(el){var v=parseFloat(el.value)||0;el.style.fontWeight=v?'700':'400';el.style.color=v?'var(--accent)':'var(--text3)';}
 function lstAutoSave(el){var rId=el.dataset.room,pk=el.dataset.trat||'PAX1';if(!rId)return;var v=parseFloat(el.value)||0,lst=DB.get('listino')||[];var e=lst.find(function(l){return l.roomId===rId;});if(!e){e={roomId:rId,prezzi:{},periodi:[]};lst.push(e);}if(!e.periodi)e.periodi=[];if(v>0)e.prezzi[pk]=v;else delete e.prezzi[pk];DB.set('listino',lst);}
 
+// ══════════════════════════════════════════════════════════════════════════
+// SPOT PUGLIA (DMS) — generazione del file XML da caricare su SPOT ONLINE
+// (www.dms.puglia.it), richiesto da Gian: DMS Puglia è il sistema regionale
+// pugliese per la movimentazione turistica (arrivi/partenze/presenze), da
+// trasmettere entro il 10 di ogni mese — DIVERSO dal vecchio strumento
+// "ISTAT/STU" già presente qui sopra, che era pensato per il sistema della
+// Provincia di Trento (stu.provincia.tn.it), non per la Puglia.
+//
+// Schema ufficiale usato (Regione Puglia, versione 0.6):
+//   movimentogiornaliero-0.6.xsd + datatype-0.6.xsd
+// I codici di comune/cittadinanza richiesti da SPOT sono IDENTICI a quelli
+// del servizio Alloggiati Web della Polizia di Stato — quindi si riusano
+// direttamente le tabelle/funzioni già presenti in DeskFlow per quello
+// (awComuneInfo, awStatoCodice), senza bisogno di nuove tabelle.
+//
+// Campi VOLUTAMENTE omessi in questa prima versione perché opzionali nello
+// schema (minOccurs="0") e per tenere il file semplice e sicuro: caratteristiche
+// di viaggio, durata soggiorno, mezzo di trasporto, motivazione del viaggio,
+// titolo di studio. Si può aggiungerli in un secondo momento se servono.
+// ══════════════════════════════════════════════════════════════════════════
+
+function spotEscapeXml(s) {
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Codice cittadinanza (9 cifre) — Italia di default se non specificato/riconosciuto
+function spotCodiceCittadinanza(nomeCittadinanza) {
+  const n = (nomeCittadinanza||'').trim();
+  if (!n || n.toLowerCase()==='italia' || n.toLowerCase()==='italiana') return '100000100';
+  const c = awStatoCodice(n);
+  return c || '100000100'; // non riconosciuto -> Italia come fallback prudente, verrà segnalato a parte
+}
+
+// Restituisce il tag <paeseresidenza> o <comuneresidenza> più adatto in base ai dati del componente,
+// e se il dato non è stato riconosciuto (comune scritto male, stato mai compilato) lo segnala.
+function spotTagResidenza(comp, nonRisolti, etichettaOspite) {
+  const statoRes = (comp.statoResidenza||'').trim();
+  if (statoRes && statoRes.toLowerCase()!=='italia') {
+    const codice = awStatoCodice(statoRes);
+    if (codice) return '<paeseresidenza>'+codice+'</paeseresidenza>';
+    nonRisolti.push('Stato di residenza "'+statoRes+'" non riconosciuto per '+etichettaOspite);
+    return '<paeseresidenza>100000100</paeseresidenza>'; // fallback, verrà segnalato
+  }
+  const info = comp.residenza ? awComuneInfo(comp.residenza) : null;
+  if (info) return '<comuneresidenza>'+info.codice+'</comuneresidenza>';
+  nonRisolti.push('Comune di residenza "'+(comp.residenza||'—')+'" non riconosciuto per '+etichettaOspite);
+  return '<comuneresidenza>412057001</comuneresidenza>'; // fallback (Bari), verrà segnalato — da correggere in anagrafica
+}
+
+// Costruisce il blocco <arrivo> di un ospite (capofamiglia/capogruppo/singolo + eventuali componenti)
+function spotBlocoArrivo(b, nonRisolti) {
+  const comps = b.componenti||[];
+  if (!comps.length) return '';
+  const primo = comps[0];
+  const etichettaPrimo = (primo.cognome||'')+' '+(primo.nome||'')+' (camera '+b.roomName+')';
+  const eta = calcolaEtaAllaData(primo.dataNascita, b.checkin);
+  const tipo = comps.length>1 ? (b.tipoAlloggiatoManuale==='18'?'18':'17') : '16'; // 16 singolo, 17 capofamiglia, 18 capogruppo
+  let xml = '<arrivo>'
+    +'<codiceclientesr>'+spotEscapeXml(b.id+'-0')+'</codiceclientesr>'
+    +'<sesso>'+(primo.sesso==='F'?'F':'M')+'</sesso>'
+    +'<cittadinanza>'+spotCodiceCittadinanza(primo.cittadinanza)+'</cittadinanza>'
+    +spotTagResidenza(primo, nonRisolti, etichettaPrimo)
+    +'<occupazionepostoletto>si</occupazionepostoletto>'
+    +'<dayuse>'+(b.checkin===b.checkout?'si':'no')+'</dayuse>'
+    +'<tipologiaalloggiato>'+tipo+'</tipologiaalloggiato>'
+    +'<eta>'+(eta!=null?eta:18)+'</eta>';
+  if (comps.length>1) {
+    xml += '<componenti>' + comps.slice(1).map(function(c, idx){
+      const etichetta = (c.cognome||'')+' '+(c.nome||'')+' (camera '+b.roomName+')';
+      const etaC = calcolaEtaAllaData(c.dataNascita, b.checkin);
+      return '<componente>'
+        +'<codiceclientesr>'+spotEscapeXml(b.id+'-'+(idx+1))+'</codiceclientesr>'
+        +'<sesso>'+(c.sesso==='F'?'F':'M')+'</sesso>'
+        +'<cittadinanza>'+spotCodiceCittadinanza(c.cittadinanza)+'</cittadinanza>'
+        +spotTagResidenza(c, nonRisolti, etichetta)
+        +'<occupazionepostoletto>si</occupazionepostoletto>'
+        +'<eta>'+(etaC!=null?etaC:18)+'</eta>'
+      +'</componente>';
+    }).join('') + '</componenti>';
+  }
+  xml += '</arrivo>';
+  return xml;
+}
+
+// Costruisce l'intero file XML per il periodo dal/al (incluso) — un <movimento> per ogni giorno
+function generaXmlSpot(dal, al) {
+  const bookingsAttive = DB.get('bookings').filter(function(b){ return b.status!=='cancellata' && !b.escludiConteggi; });
+  const rooms = getRooms();
+  const totCamere = rooms.length;
+  const postiLettoTotali = rooms.reduce(function(s,r){ return s + Math.max(1, parseInt(r.capacity)||1); }, 0);
+  const nonRisolti = [];
+  const giorni = [];
+  let d = dal, guard = 0;
+  while (d <= al && guard < 366) { giorni.push(d); d = addDays(d,1); guard++; }
+
+  const movimenti = giorni.map(function(ds){
+    // Chi arriva oggi (con dati di check-in già compilati — senza quelli non si può generare la scheda)
+    const arriviOggi = bookingsAttive.filter(function(b){ return b.checkin===ds && b.componenti && b.componenti.length; });
+    // Chi arriva oggi ma NON ha ancora i dati di check-in compilati — va segnalato, non può essere incluso
+    const arriviSenzaDati = bookingsAttive.filter(function(b){ return b.checkin===ds && (!b.componenti || !b.componenti.length); });
+    arriviSenzaDati.forEach(function(b){ nonRisolti.push('Camera '+b.roomName+' ('+b.guestName+'): arrivo del '+fmtDate(ds)+' senza dati ospite compilati (check-in) — non incluso nel file, completa il check-in prima di generare SPOT'); });
+    // Chi parte oggi (partenze: solo il codice del capofamiglia/capogruppo/singolo, SPOT propaga da solo ai componenti)
+    const partenzeOggi = bookingsAttive.filter(function(b){ return b.checkout===ds && b.componenti && b.componenti.length; });
+    // Camere occupate stanotte, per i dati struttura
+    const camereOccupateOggi = bookingsAttive.filter(function(b){ return b.checkin<=ds && b.checkout>ds; }).length;
+
+    const tipo = (arriviOggi.length || partenzeOggi.length) ? 'MP' : 'NM';
+    let xml = '<movimento type="'+tipo+'" data="'+ds+'">';
+    if (arriviOggi.length) {
+      xml += '<arrivi>' + arriviOggi.map(function(b){ return spotBlocoArrivo(b, nonRisolti); }).join('') + '</arrivi>';
+    }
+    if (partenzeOggi.length) {
+      xml += '<partenze>' + partenzeOggi.map(function(b){ return '<codiceclientesr>'+spotEscapeXml(b.id+'-0')+'</codiceclientesr>'; }).join('') + '</partenze>';
+    }
+    xml += '<datistruttura>'
+      +'<cameredisponibili>'+totCamere+'</cameredisponibili>'
+      +'<postilettodisponibili>'+postiLettoTotali+'</postilettodisponibili>'
+      +'<camereoccupate>'+camereOccupateOggi+'</camereoccupate>'
+    +'</datistruttura>';
+    xml += '</movimento>';
+    return xml;
+  }).join('');
+
+  const xmlCompleto = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    +'<movimenti xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="movimentogiornaliero-0.6.xsd" vendor="DeskFlow">'
+    +movimenti
+    +'</movimenti>';
+
+  return { xml: xmlCompleto, nonRisolti: nonRisolti };
+}
+
+function apriGeneraXmlSpot() {
+  const dal = window._adFrom || today();
+  const al = window._adTo || today();
+  showModal('Genera XML per SPOT (DMS Puglia)',
+    '<div style="font-size:13px;line-height:1.5">'
+    +'<p>Genera il file XML da caricare su <strong>www.dms.puglia.it</strong> → SPOT Online → sezione "caricamento file XML", per il periodo <strong>'+fmtDate(dal)+' → '+fmtDate(al)+'</strong> (cambialo dalla pagina Adempimenti prima di aprire questa finestra, se serve).</p>'
+    +'<p style="color:var(--amber);background:var(--amber-bg);padding:8px 10px;border-radius:8px;font-size:12.5px">⚠️ Prima versione di questa funzione — non è mai stata verificata caricando davvero un file su SPOT. Ti consiglio di provare prima con <strong>un solo giorno</strong> per controllare che venga accettato senza errori, prima di usarla per un mese intero.</p>'
+    +'<p style="color:var(--text3);font-size:12px">Vengono inclusi solo gli arrivi con dati ospite già compilati (check-in fatto). Chi non ha ancora fatto check-in viene segnalato e saltato.</p>'
+    +'</div>',
+    '<button class="btn" onclick="closeModal()">Annulla</button>'
+    +'<button class="btn btn-primary" onclick="eseguiGeneraXmlSpot(\''+dal+'\',\''+al+'\')">📥 Genera e scarica</button>'
+  );
+}
+
+function eseguiGeneraXmlSpot(dal, al) {
+  const r = generaXmlSpot(dal, al);
+  const blob = new Blob([r.xml], {type:'application/xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'spot-movimento-'+dal+'_'+al+'.xml';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  closeModal();
+  if (r.nonRisolti.length) {
+    alert('File generato — ma ATTENZIONE, questi ospiti/arrivi NON sono stati inclusi o hanno dati incompleti:\n\n'+r.nonRisolti.join('\n')+'\n\nCorreggili in anagrafica/check-in e rigenera il file prima di caricarlo su SPOT.');
+  } else {
+    showToast('File XML generato — carica ora su SPOT Online (dms.puglia.it)');
+  }
+}
+
 function renderAdempimenti() {
   var cfg = DB.getObj('settings', {});
   var bookings = DB.get('bookings').filter(function(b){
@@ -25692,6 +25853,7 @@ function renderAdempimenti() {
   document.getElementById('page-adempimenti').innerHTML =
     '<div class="page-header"><div><div class="page-title">📋 Adempimenti</div>'+
     '<div class="page-subtitle">Alloggiati Web e ISTAT</div></div>'+
+    '<button class="btn btn-sm" style="background:#00854a;color:#fff;border-color:#00854a" onclick="apriGeneraXmlSpot()" title="Genera il file XML da caricare su SPOT (DMS Puglia) per il periodo selezionato">🇮🇹 Genera XML per SPOT (Puglia)</button>'+
     '<button class="btn btn-sm" onclick="navigate(\'impostazioni\')">⚙ Credenziali</button></div>'+
     '<div class="page-content">'+
     warnHtml+
