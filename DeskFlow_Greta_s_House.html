@@ -334,7 +334,7 @@ tr:hover td{background:var(--surface2)}
     <div class="sidebar-logo">
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 02/09/2026 · 17:07</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 02/09/2026 · 17:27</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -10877,6 +10877,20 @@ function avvisaHostexRestrizioniSubito(){
     }).catch(function(err){ console.warn('Avviso istantaneo a Hostex (restrizioni) non riuscito (interverrà comunque il Cron entro pochi minuti):', err); });
   } catch (err) { console.warn('Avviso istantaneo a Hostex non riuscito:', err); }
 }
+// Come sopra, ma per i prezzi (sync-prezzi-hostex) — prima girava SOLO una volta al giorno via
+// Cron, quindi ogni modifica di prezzo/livello restava invisibile su Hostex per ore, anche se sul
+// PMS era già corretta. Va richiamata sia dalla modifica manuale di una cella prezzo del Listino
+// sia dal cambio livello (livCambiaGiorno/livApplicaAlListino).
+function avvisaHostexPrezziSubito(){
+  if (!supabaseReady) return;
+  try {
+    var s = DB.getObj('settings', {});
+    if (!s.supabaseUrl) return;
+    fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/sync-prezzi-hostex').then(function(res){
+      if (!res.ok) console.warn('Avviso istantaneo a Hostex (prezzi) rifiutato con stato '+res.status+' (interverrà comunque il Cron entro il giorno)');
+    }).catch(function(err){ console.warn('Avviso istantaneo a Hostex (prezzi) non riuscito (interverrà comunque il Cron entro il giorno):', err); });
+  } catch (err) { console.warn('Avviso istantaneo a Hostex non riuscito:', err); }
+}
 
 // Chiude/riapre alla vendita un singolo giorno per l'intera tipologia
 async function toggleChiusuraCategoria(catTypeEnc, ds, fromPage){
@@ -15918,6 +15932,7 @@ async function doMassUpdateListinoV2() {
   DB.set('listino', listino);
   avvisaHostexSubito();
   avvisaHostexRestrizioniSubito();
+  if (typeof avvisaHostexPrezziSubito === 'function') avvisaHostexPrezziSubito();
 
   // Registra nel Registro Listino cosa è stato cambiato, per ogni tipologia toccata
   Object.keys(dataByType).forEach(function(t){
@@ -25361,6 +25376,8 @@ function livApplicaAlListino(id) {
   DB.set('listino', lst);
   lstPropagaDaStandard(standardRooms[0].id, 'PAX2', l.base, {dal:lstSelFrom, al:lstSelTo});
   livSegnaGiorni(lstSelFrom, lstSelTo, id);
+  if (typeof avvisaHostexPrezziSubito === 'function') avvisaHostexPrezziSubito();
+  if (typeof registraModificaListino === 'function') registraModificaListino(fmtDate(lstSelFrom)+' → '+fmtDate(lstSelTo)+': livello → '+l.nome);
   showToast('Livello '+l.nome+' applicato al periodo '+fmtDate(lstSelFrom)+' → '+fmtDate(lstSelTo)+' — vai sul Listino per vederlo');
 }
 
@@ -25418,8 +25435,12 @@ function livCambiaGiorno(ds, livelloId) {
         });
         DB.set('listino', lst);
         lstPropagaDaStandard(standardRooms[0].id, 'PAX2', l.base, {dal:targetDal, al:targetAl});
+        if (typeof avvisaHostexPrezziSubito === 'function') avvisaHostexPrezziSubito();
       }
     }
+  }
+  if (typeof registraModificaListino === 'function') {
+    registraModificaListino(fmtDate(targetDal)+(targetAl!==targetDal?(' → '+fmtDate(targetAl)):'')+': livello → '+(livelloId?(livGetLivelli().find(function(x){return x.id===livelloId;})||{}).nome||livelloId:'nessuno (—)'));
   }
 }
 
@@ -26119,12 +26140,19 @@ function lstCellSave(el){
   DB.set('listino',lst);
   lstSincronizzaTipologia(rId);
   var propagato = lstPropagaDaStandard(rId, pk, v, ctx);
+  if (typeof avvisaHostexPrezziSubito === 'function') avvisaHostexPrezziSubito();
+  if (typeof registraModificaListino === 'function') {
+    var roomNome = (DB.get('rooms')||[]).find(function(r){return r.id===rId;});
+    roomNome = roomNome ? roomNome.name : rId;
+    var periodoTxt = ctx.ds ? fmtDate(ctx.ds) : (fmtDate(ctx.dal)+' → '+fmtDate(ctx.al));
+    registraModificaListino(periodoTxt+': <strong>'+roomNome+'</strong> ('+pk.replace('PAX','')+' pax) — prezzo → '+(v>0?fmtCurrency(v):'rimosso'));
+  }
   lstOnInput(el);
   if(propagato) setTimeout(renderListino, 0); // rimandato: evita errore DOM se scatta da un blur
 }
-function lstPeriodSave(el){var rId=el.dataset.room,pk=el.dataset.trat||'PAX1',dal=el.dataset.dal,al=el.dataset.al;if(!rId||!dal||!al)return;var v=Math.round(parseFloat(el.value)||0);el.value=v||'';var lst=DB.get('listino')||[];var e=lst.find(function(l){return l.roomId===rId && (l.tariffaId||'standard')===lstTariffaId;});if(!e){e={roomId:rId,tariffaId:lstTariffaId,prezzi:{},periodi:[]};lst.push(e);}if(!e.periodi)e.periodi=[];var p=e.periodi.find(function(p){return p.dal===dal&&p.al===al;});if(!p){p={dal:dal,al:al,prezzi:{}};e.periodi.push(p);}if(v>0)p.prezzi[pk]=v;else delete p.prezzi[pk];DB.set('listino',lst);lstSincronizzaTipologia(rId);var propagato=lstPropagaDaStandard(rId,pk,v,{dal:dal,al:al});if(propagato)setTimeout(renderListino,0);}
+function lstPeriodSave(el){var rId=el.dataset.room,pk=el.dataset.trat||'PAX1',dal=el.dataset.dal,al=el.dataset.al;if(!rId||!dal||!al)return;var v=Math.round(parseFloat(el.value)||0);el.value=v||'';var lst=DB.get('listino')||[];var e=lst.find(function(l){return l.roomId===rId && (l.tariffaId||'standard')===lstTariffaId;});if(!e){e={roomId:rId,tariffaId:lstTariffaId,prezzi:{},periodi:[]};lst.push(e);}if(!e.periodi)e.periodi=[];var p=e.periodi.find(function(p){return p.dal===dal&&p.al===al;});if(!p){p={dal:dal,al:al,prezzi:{}};e.periodi.push(p);}if(v>0)p.prezzi[pk]=v;else delete p.prezzi[pk];DB.set('listino',lst);lstSincronizzaTipologia(rId);var propagato=lstPropagaDaStandard(rId,pk,v,{dal:dal,al:al});if(typeof avvisaHostexPrezziSubito==='function')avvisaHostexPrezziSubito();if(propagato)setTimeout(renderListino,0);}
 
-function lstBaseSave(el){var rId=el.dataset.room,pk=el.dataset.trat||'PAX1';if(!rId)return;var v=Math.round(parseFloat(el.value)||0);el.value=v||'';var lst=DB.get('listino')||[];var e=lst.find(function(l){return l.roomId===rId && (l.tariffaId||'standard')===lstTariffaId;});if(!e){e={roomId:rId,tariffaId:lstTariffaId,prezzi:{},periodi:[]};lst.push(e);}if(!e.periodi)e.periodi=[];if(v>0)e.prezzi[pk]=v;else delete e.prezzi[pk];DB.set('listino',lst);lstSincronizzaTipologia(rId);lstPropagaDaStandard(rId,pk,v,{});setTimeout(renderListino,0);}
+function lstBaseSave(el){var rId=el.dataset.room,pk=el.dataset.trat||'PAX1';if(!rId)return;var v=Math.round(parseFloat(el.value)||0);el.value=v||'';var lst=DB.get('listino')||[];var e=lst.find(function(l){return l.roomId===rId && (l.tariffaId||'standard')===lstTariffaId;});if(!e){e={roomId:rId,tariffaId:lstTariffaId,prezzi:{},periodi:[]};lst.push(e);}if(!e.periodi)e.periodi=[];if(v>0)e.prezzi[pk]=v;else delete e.prezzi[pk];DB.set('listino',lst);lstSincronizzaTipologia(rId);lstPropagaDaStandard(rId,pk,v,{});if(typeof avvisaHostexPrezziSubito==='function')avvisaHostexPrezziSubito();setTimeout(renderListino,0);}
 
 // lstSaveMin/lstSaveMinEvt rimosse: il soggiorno minimo non è più
 // modificabile per singola camera (vedi applyMinNottiCategoria, per tipologia+data).
