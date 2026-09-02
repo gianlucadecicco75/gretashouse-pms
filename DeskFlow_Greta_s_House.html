@@ -334,7 +334,7 @@ tr:hover td{background:var(--surface2)}
     <div class="sidebar-logo">
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 02/09/2026 · 05:43</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 02/09/2026 · 05:49</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -10787,21 +10787,22 @@ function confermaSpostamentoDrag(bId, targetRoomId) {
 // (es. connessione assente in quel momento) il Cron programmato copre comunque l'aggiornamento
 // entro pochi minuti, quindi non si perde mai nulla — è solo una scorciatoia per renderlo istantaneo
 // nella stragrande maggioranza dei casi.
-// BUG TROVATO E CORRETTO (Gian segnalava "un notevole ritardo" nel collegamento con Hostex): questa
-// chiamata non passava MAI le credenziali Supabase (Authorization/apikey), a differenza di tutte le
-// altre chiamate alle Edge Function nel programma (es. invio-ricevuta). Se sulla funzione è attiva
-// la verifica di sicurezza di Supabase, ogni chiamata veniva rifiutata con errore 401 — e siccome
-// fetch() non genera un errore per una risposta rifiutata (solo per un vero problema di rete), il
-// fallimento restava invisibile: l'avviso "istantaneo" non funzionava MAI, e a salvare la situazione
-// era sempre e solo il controllo di sicurezza ogni 3-5 minuti — da qui il ritardo percepito.
+// STORIA DI QUESTO BUG (per non ripetere l'errore in futuro): avevo aggiunto qui le credenziali
+// Authorization/apikey pensando risolvessero un ritardo segnalato da Gian — ma la verifica di
+// sicurezza su Supabase era già disattivata per questa funzione, quindi non servivano. Aggiungerle
+// ha addirittura ROTTO la chiamata: un fetch con header extra come Authorization obbliga il browser
+// a fare prima una richiesta di controllo (preflight CORS), e questa funzione non è configurata per
+// rispondervi correttamente — il browser blocca tutto per policy CORS ("No Access-Control-Allow-
+// Origin header"). Senza header extra, invece, è una richiesta "semplice" che non attiva il preflight
+// e passa senza problemi. Se in futuro la verifica JWT venisse riattivata su Supabase, la funzione
+// stessa (il codice lato server, non questo file) andrebbe aggiornata per rispondere correttamente
+// alle richieste OPTIONS di preflight prima di poter rimettere qui le credenziali.
 function avvisaHostexSubito(){
   if (!supabaseReady) return; // offline: niente da avvisare, ci penserà il Cron al ritorno online
   try {
     var s = DB.getObj('settings', {});
-    if (!s.supabaseUrl || !s.supabaseKey) return;
-    fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/sync-disponibilita-hostex', {
-      headers: { 'Authorization': 'Bearer '+s.supabaseKey, 'apikey': s.supabaseKey }
-    }).then(function(res){
+    if (!s.supabaseUrl) return;
+    fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/sync-disponibilita-hostex').then(function(res){
       if (!res.ok) console.warn('Avviso istantaneo a Hostex (disponibilità) rifiutato con stato '+res.status+' (interverrà comunque il Cron entro pochi minuti)');
     }).catch(function(err){ console.warn('Avviso istantaneo a Hostex (disponibilità) non riuscito (interverrà comunque il Cron entro pochi minuti):', err); });
   } catch (err) { console.warn('Avviso istantaneo a Hostex non riuscito:', err); }
@@ -10813,10 +10814,8 @@ function avvisaHostexRestrizioniSubito(){
   if (!supabaseReady) return;
   try {
     var s = DB.getObj('settings', {});
-    if (!s.supabaseUrl || !s.supabaseKey) return;
-    fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/sync-restrizioni-hostex', {
-      headers: { 'Authorization': 'Bearer '+s.supabaseKey, 'apikey': s.supabaseKey }
-    }).then(function(res){
+    if (!s.supabaseUrl) return;
+    fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/sync-restrizioni-hostex').then(function(res){
       if (!res.ok) console.warn('Avviso istantaneo a Hostex (restrizioni) rifiutato con stato '+res.status+' (interverrà comunque il Cron entro pochi minuti)');
     }).catch(function(err){ console.warn('Avviso istantaneo a Hostex (restrizioni) non riuscito (interverrà comunque il Cron entro pochi minuti):', err); });
   } catch (err) { console.warn('Avviso istantaneo a Hostex non riuscito:', err); }
