@@ -334,14 +334,14 @@ tr:hover td{background:var(--surface2)}
     <div class="sidebar-logo">
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 05/09/2026 · 05:50</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 05/09/2026 · 10:28</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
     </button>
-    <button id="btn-stop-vendite" onclick="apriPannelloStopVendite()" title="Chiude/riapre subito la vendita ai portali (tutti insieme o uno per volta) — resta comunque prenotabile a mano dal PMS" style="width:calc(100% - 24px);margin:0 12px 8px;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-      <span id="btn-stop-vendite-testo">⛔ Chiudi vendite portali</span>
-    </button>
+    <a id="btn-torna-hub" href="#" onclick="return apriHub()" title="Torna alla pagina Hub per passare a un'altra struttura (solo Amministratore)" style="display:none;width:calc(100% - 24px);margin:0 12px 8px;text-align:center;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none">
+      🔀 Torna all'Hub
+    </a>
     <button id="btn-logout" onclick="doLogout()" style="display:none;width:calc(100% - 24px);margin:0 12px 12px;background:transparent;color:var(--text3,#888);border:.5px solid var(--border2,#ddd);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:500;cursor:pointer;align-items:center;justify-content:center;gap:6px">
       🚪 Esci
     </button>
@@ -15423,6 +15423,16 @@ function aggiornaVisibilitaMenuPermessi(){
   });
   var voceUtenti = document.querySelector('.nav-item[data-page="utenti"]');
   if (voceUtenti) voceUtenti.style.display = window.currentUserPermessi ? 'none' : '';
+  var btnHub = document.getElementById('btn-torna-hub');
+  if (btnHub) btnHub.style.display = window.currentUserPermessi ? 'none' : 'block';
+}
+// Torna alla pagina Hub Amministratore (indirizzo impostato in Impostazioni → Struttura) — l'unico
+// posto da cui adesso si passa da una struttura all'altra, su richiesta di Gian.
+function apriHub(){
+  var s = DB.getObj('settings', {});
+  if (!s.hubUrl) { showToast('Imposta prima l\'indirizzo della pagina Hub in Impostazioni → Struttura'); return false; }
+  window.location.href = s.hubUrl;
+  return false;
 }
 
 function renderGestioneUtenti(){
@@ -26508,7 +26518,12 @@ if(lstSelFrom&&lstSelTo){
     : '';
   document.getElementById('page-listino').innerHTML=
     '<div style="padding:24px 28px 12px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'+
     '<div class="page-title">Listino prezzi</div>'+
+    '<button id="btn-stop-vendite" onclick="apriPannelloStopVendite()" title="Chiude/riapre subito la vendita ai portali (tutti insieme o uno per volta) — resta comunque prenotabile a mano dal PMS" style="border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">'+
+      '<span id="btn-stop-vendite-testo">⛔ Chiudi vendite portali</span>'+
+    '</button>'+
+    '</div>'+
     '<div class="page-subtitle" style="margin-bottom:6px">'+rangeLabel+' · Tariffa: <strong>'+getTariffaNome(lstTariffaId)+'</strong>'+(lstIsDerivata?' <span style="color:#7c3aed;font-weight:700">— calcolata automaticamente: Standard '+(lstTarObj.valore>=0?'+':'')+lstTarObj.valore+(lstTarObj.modalita==='percento'?'%':(cfg.currency||'€'))+'</span>':'')+'</div>'+
     avvisoNoStandard+
     (lstMarkupOTA ? '<div style="background:var(--accent-light);color:var(--accent);padding:8px 14px;border-radius:8px;font-size:12.5px;margin-bottom:10px">💡 Margine OTA attivo: <strong>+'+lstMarkupOTA+'%</strong> — passa il mouse su un prezzo per vedere quanto mettere su Booking.com/Airbnb</div>' : '')+
@@ -26594,6 +26609,7 @@ if(lstSelFrom&&lstSelTo){
     '<div style="margin-top:8px">'+renderRegistroListinoHTML()+'</div>'+
     '</details>'+
     '</div>';
+  aggiornaBottoneStopVendite();
 }
 var lstSelFrom='',lstSelTo='',listinoYear=new Date().getFullYear(),lstTariffaId='standard';
 
@@ -29121,6 +29137,10 @@ function renderImpostazioni() {
               <label>Nome struttura</label>
               <input type="text" id="s-name" value="${s.propertyName||''}" placeholder="Il tuo hotel">
             </div>
+            <div class="form-group full">
+              <label>Indirizzo pagina Hub Amministratore (per "🔀 Torna all'Hub" in barra laterale)</label>
+              <input type="text" id="s-hub-url" value="${s.hubUrl||''}" placeholder="https://.../hub-amministratore.html">
+            </div>
             <div class="form-group">
               <label>Valuta</label>
               <select id="s-currency">
@@ -29783,6 +29803,7 @@ function rimuoviLogoStruttura() {
 function saveImpostazioni() {
   const s = DB.getObj('settings', {}); // partiamo da TUTTO quello che c'è già, non lo ricostruiamo da zero
   s.propertyName  = document.getElementById('s-name').value;
+  s.hubUrl        = document.getElementById('s-hub-url')?.value.trim() || '';
   s.currency      = document.getElementById('s-currency').value;
   // s.logo non va toccato qui: resta quello già salvato, si cambia solo con Carica/Rimuovi logo
   s.cityTax          = parseFloat(document.getElementById('s-tax').value)||0;
