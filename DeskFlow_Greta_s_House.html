@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/09/2026 · 18:18</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/09/2026 · 20:29</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -21783,8 +21783,9 @@ function renderGuidaOspiti() {
 <div class="toolbar">
   <span style="font-size:.75rem;color:var(--muted);font-weight:500;letter-spacing:.05em;text-transform:uppercase">Anteprima per gli ospiti</span>
   <div class="share-group">
-    <button class="btn btn-wa" onclick="ggShareWA()">💬 WhatsApp</button>
-    <button class="btn btn-mail" onclick="ggShareMail()">✉️ Email</button>
+    <button class="btn btn-wa" onclick="ggApriInvioCliente()">📤 Invia a un cliente</button>
+    <button class="btn btn-wa" onclick="ggShareWA()">💬 WhatsApp (generico)</button>
+    <button class="btn btn-mail" onclick="ggShareMail()">✉️ Email (generico)</button>
     <button class="btn btn-copy" onclick="ggCopyText(this)">🔗 Copia testo</button>
   </div>
 </div>
@@ -22051,6 +22052,64 @@ function ggBuildText(){
 }
 
 function ggShareWA(){window.open("https://api.whatsapp.com/send?text="+encodeURIComponent(ggBuildText()),"_blank")}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INVIA A UN CLIENTE — richiesto da Gian: invece del solo testo generico,
+// scegliere una prenotazione precisa e mandare il LINK della pagina pubblica
+// (bella, con card e immagini) direttamente al telefono/email di quell'ospite.
+// ══════════════════════════════════════════════════════════════════════════
+function ggApriInvioCliente(){
+  var s = DB.getObj('settings', {});
+  if (!s.guidaOspitiUrl) { showToast('Imposta prima l\'indirizzo della pagina pubblica in Impostazioni → Struttura'); return; }
+  var oggi = today();
+  var dal = addDays(oggi, -2), al = addDays(oggi, 60);
+  var guests = DB.get('guests') || [];
+  var bks = (DB.get('bookings')||[]).filter(function(b){
+    return b.status !== 'cancellata' && b.checkin >= dal && b.checkin <= al;
+  }).sort(function(a,b){ return (a.checkin||'').localeCompare(b.checkin||''); });
+
+  if (!bks.length) { showToast('Nessuna prenotazione trovata nei prossimi 60 giorni'); return; }
+
+  showModal('Invia la Guida Ospiti a un cliente',
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Scegli la prenotazione — manda il link della guida al telefono/email di quell\'ospite.</div>'+
+    '<div style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">'+
+    bks.map(function(b){
+      var g = b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+      var tel = g && g.phone ? g.phone : '';
+      var mail = g && g.email ? g.email : '';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:.5px solid var(--border);border-radius:8px">'+
+        '<div><div style="font-weight:700;font-size:13px">'+(b.guestName||'').replace(/</g,'&lt;')+'</div>'+
+        '<div style="font-size:11.5px;color:var(--text3)">'+fmtDate(b.checkin)+' → '+fmtDate(b.checkout)+' · '+(b.roomName||'')+(tel?' · 📞 '+tel:'')+'</div></div>'+
+        '<div style="display:flex;gap:5px">'+
+          '<button class="btn btn-sm" '+(tel?'':'disabled title="Nessun telefono salvato per questo ospite"')+' onclick="ggInviaClienteWA(\''+b.id+'\')">💬</button>'+
+          '<button class="btn btn-sm" '+(mail?'':'disabled title="Nessuna email salvata per questo ospite"')+' onclick="ggInviaClienteMail(\''+b.id+'\')">✉️</button>'+
+        '</div></div>';
+    }).join('')+
+    '</div>',
+    '<button class="btn" onclick="closeModal()">Chiudi</button>'
+  );
+}
+function ggTestoInvioCliente(b){
+  var s = DB.getObj('settings', {});
+  return 'Ciao '+(b.guestName||'')+'! 🌊\n\nEcco la guida per il tuo soggiorno a Greta\'s House (dal '+fmtDate(b.checkin)+' al '+fmtDate(b.checkout)+'): orari, Wi-Fi, contatti utili, spiagge e ristoranti consigliati.\n\n👉 '+s.guidaOspitiUrl+'\n\nA presto!';
+}
+function ggInviaClienteWA(bookingId){
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  var guests = DB.get('guests') || [];
+  var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+  if (!b || !g || !g.phone) { showToast('Telefono non disponibile per questo ospite'); return; }
+  var tel = g.phone.replace(/[^\d+]/g,'');
+  window.open('https://api.whatsapp.com/send?phone='+encodeURIComponent(tel)+'&text='+encodeURIComponent(ggTestoInvioCliente(b)), '_blank');
+  closeModal();
+}
+function ggInviaClienteMail(bookingId){
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  var guests = DB.get('guests') || [];
+  var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+  if (!b || !g || !g.email) { showToast('Email non disponibile per questo ospite'); return; }
+  window.location.href = 'mailto:'+encodeURIComponent(g.email)+'?subject='+encodeURIComponent('La tua guida — Greta\'s House')+'&body='+encodeURIComponent(ggTestoInvioCliente(b));
+  closeModal();
+}
 function ggShareMail(){window.location.href="mailto:?subject="+encodeURIComponent("La tua guida — Greta's House")+"&body="+encodeURIComponent(ggBuildText())}
 function ggCopyText(btn){
   navigator.clipboard.writeText(ggBuildText()).then(()=>{
@@ -29274,6 +29333,10 @@ function renderImpostazioni() {
               <input type="text" id="s-hub-url" value="${s.hubUrl||''}" placeholder="https://.../hub-amministratore.html">
             </div>
             <div class="form-group full">
+              <label>Indirizzo pagina pubblica Guida Ospiti (da inviare ai clienti)</label>
+              <input type="text" id="s-guida-ospiti-url" value="${s.guidaOspitiUrl||''}" placeholder="https://.../guida-ospiti-gretashouse.html">
+            </div>
+            <div class="form-group full">
               <label>Email Amministratore Generale (solo per l'etichetta mostrata — non limita nessun potere)</label>
               <input type="email" id="s-email-admin-generale" value="${s.emailAdminGenerale||''}" placeholder="tuaemail@...">
               <div style="font-size:11px;color:var(--text3);margin-top:3px">Chi accede con questa email vede scritto "Amministratore Generale"; chiunque altro non limitato in Utenti & Permessi vede "Amministratore di struttura" — entrambi hanno comunque pieni poteri su questa struttura, è solo un'etichetta per riconoscere a colpo d'occhio chi ha una visione su tutte le strutture.</div>
@@ -29943,6 +30006,7 @@ function saveImpostazioni() {
   s.propertyName  = document.getElementById('s-name').value;
   s.hubUrl        = document.getElementById('s-hub-url')?.value.trim() || '';
   s.emailAdminGenerale = document.getElementById('s-email-admin-generale')?.value.trim().toLowerCase() || '';
+  s.guidaOspitiUrl = document.getElementById('s-guida-ospiti-url')?.value.trim() || '';
   s.currency      = document.getElementById('s-currency').value;
   // s.logo non va toccato qui: resta quello già salvato, si cambia solo con Carica/Rimuovi logo
   s.cityTax          = parseFloat(document.getElementById('s-tax').value)||0;
