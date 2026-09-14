@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/09/2026 · 20:29</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/09/2026 · 21:37</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -21652,6 +21652,10 @@ const GG_DEFAULT_DATA = {
     {icon:"🚭", text:"Vietato fumare all'interno della struttura."},
     {icon:"🔑", text:"In caso di smarrimento delle chiavi, contattare subito l'host."}
   ],
+  appliances: [
+    {name:"Lavatrice", instructions:"Apri lo sportello, inserisci il bucato senza superare metà cestello, aggiungi il detersivo nella vaschetta a sinistra. Gira la manopola sul programma \"Cotone 40°\" e premi Start. Ciclo completo: circa 1h30.", photos:[]},
+    {name:"Macchina del caffè", instructions:"Riempi il serbatoio d'acqua sul retro. Inserisci la capsula nell'apposito vano, chiudi la leva. Premi il pulsante grande per un caffè lungo, quello piccolo per un espresso.", photos:[]}
+  ],
   footer: "Greta's House · Uggiano la Chiesa · Per qualsiasi necessità siamo sempre a disposizione 🌊"
 };
 
@@ -21668,6 +21672,81 @@ function ggItemHTML(it) {
 }
 function ggRuleHTML(r) {
   return '<div class="tip-field"><span>'+ggEsc(r.icon||'📝')+'</span><textarea rows="1">'+ggEsc(r.text)+'</textarea></div>';
+}
+
+// ── ELETTRODOMESTICI E COMFORT — nome, istruzioni d'uso, foto (richiesto da Gian: es. "Lavatrice"
+// con indicazioni e foto di come si usa, "Macchina del caffè" idem). Le foto vengono ridotte
+// automaticamente prima di salvarle, per non appesantire troppo il salvataggio (max 900px di lato
+// più lungo, qualità 0.72) — restano comunque ben leggibili su schermo.
+function ggRidimensionaFoto(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var maxLato = 900;
+        var w = img.width, h = img.height;
+        if (w > maxLato || h > maxLato) {
+          if (w > h) { h = Math.round(h * maxLato / w); w = maxLato; }
+          else { w = Math.round(w * maxLato / h); h = maxLato; }
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function ggApplianceHTML(a, idx) {
+  var fotoHTML = (a.photos||[]).map(function(src, pi){
+    return '<div style="position:relative;display:inline-block;margin:4px"><img src="'+src+'" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--sky2)">'+
+      '<button onclick="ggRimuoviFotoAppliance('+idx+','+pi+')" style="position:absolute;top:-6px;right:-6px;background:#c0392b;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;line-height:1">✕</button></div>';
+  }).join('');
+  return '<div class="appliance-card" style="background:var(--sky);border-radius:12px;padding:.8rem 1rem;margin-bottom:.7rem">'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'+
+      '<input class="appliance-name" value="'+ggEsc(a.name)+'" placeholder="Nome (es. Lavatrice)" style="flex:1;font-weight:600;font-size:.92rem;background:#fff;border:1px solid var(--sky2);border-radius:6px;padding:.35rem .6rem">'+
+      '<button class="del-btn" onclick="this.closest(\'.appliance-card\').remove()" title="Elimina">✕</button>'+
+    '</div>'+
+    '<textarea class="appliance-instr" rows="3" placeholder="Indicazioni d\'uso passo per passo…" style="width:100%;background:#fff;border:1px solid var(--sky2);border-radius:6px;padding:.5rem .7rem;font-family:\'DM Sans\',sans-serif;font-size:.85rem;resize:vertical">'+ggEsc(a.instructions)+'</textarea>'+
+    '<div class="appliance-photos" style="margin-top:8px">'+fotoHTML+'</div>'+
+    '<label class="add-btn" style="display:inline-flex;margin-top:6px;cursor:pointer">📷 Aggiungi foto<input type="file" accept="image/*" multiple style="display:none" onchange="ggCaricaFotoAppliance(this,'+idx+')"></label>'+
+  '</div>';
+}
+async function ggCaricaFotoAppliance(input, idx){
+  var d = DB.getObj('guidaOspiti', null) || GG_DEFAULT_DATA;
+  if (!d.appliances) d.appliances = [];
+  if (!d.appliances[idx]) return;
+  if (!d.appliances[idx].photos) d.appliances[idx].photos = [];
+  showToast('Caricamento foto…');
+  for (var i=0; i<input.files.length; i++) {
+    try {
+      var dataUrl = await ggRidimensionaFoto(input.files[i]);
+      d.appliances[idx].photos.push(dataUrl);
+    } catch (err) { console.error('Errore caricamento foto:', err); }
+  }
+  DB.setObj('guidaOspiti', d);
+  renderGuidaOspiti();
+  showToast('Foto aggiunta — ricordati di premere "Salva modifiche"');
+}
+function ggRimuoviFotoAppliance(idx, photoIdx){
+  var d = DB.getObj('guidaOspiti', null) || GG_DEFAULT_DATA;
+  if (d.appliances && d.appliances[idx] && d.appliances[idx].photos) {
+    d.appliances[idx].photos.splice(photoIdx, 1);
+    DB.setObj('guidaOspiti', d);
+    renderGuidaOspiti();
+  }
+}
+function ggAddAppliance(){
+  var d = DB.getObj('guidaOspiti', null) || GG_DEFAULT_DATA;
+  if (!d.appliances) d.appliances = [];
+  d.appliances.push({name:'', instructions:'', photos:[]});
+  DB.setObj('guidaOspiti', d);
+  renderGuidaOspiti();
 }
 
 function renderGuidaOspiti() {
@@ -21871,6 +21950,16 @@ function renderGuidaOspiti() {
   </div>
 </div>
 
+<div class="card" id="s-appliances">
+  <div class="card-head" onclick="ggToggle('s-appliances')">
+    <span class="card-icon">🔌</span><span class="card-title">Elettrodomestici e comfort</span><span class="chevron">▼</span>
+  </div>
+  <div class="card-body" id="appliances-list">
+    ${(d.appliances||[]).map(ggApplianceHTML).join('')}
+    <button class="add-btn" onclick="ggAddAppliance()">+ Aggiungi elettrodomestico</button>
+  </div>
+</div>
+
 <div class="card" id="s-rules">
   <div class="card-head" onclick="ggToggle('s-rules')">
     <span class="card-icon">📋</span><span class="card-title">Note e regole della casa</span><span class="chevron">▼</span>
@@ -22002,6 +22091,18 @@ function ggCollectData(){
   document.querySelectorAll('#rules-body .tip-field').forEach(t=>{
     rules.push({icon:t.querySelector('span')?.textContent||'📝', text:t.querySelector('textarea')?.value||''});
   });
+  // Le foto sono già salvate al momento del caricamento (vedi ggCaricaFotoAppliance) — qui
+  // leggiamo solo nome/istruzioni dai campi a schermo e le riuniamo alle foto già presenti,
+  // per indice, così non si perdono foto già caricate ma non ancora "Salvate" col resto.
+  const applianceSalvate = (DB.getObj('guidaOspiti', null) || GG_DEFAULT_DATA).appliances || [];
+  const appliances=[];
+  document.querySelectorAll('#appliances-list .appliance-card').forEach((c,i)=>{
+    appliances.push({
+      name: c.querySelector('.appliance-name')?.value||'',
+      instructions: c.querySelector('.appliance-instr')?.value||'',
+      photos: (applianceSalvate[i] && applianceSalvate[i].photos) || []
+    });
+  });
   return {
     welcome: document.getElementById('welcome-msg')?.value||'',
     address: document.getElementById('gg-address')?.value||'',
@@ -22012,6 +22113,7 @@ function ggCollectData(){
     visit: collectItems('visit-list'),
     act: collectItems('act-list'),
     rules: rules,
+    appliances: appliances,
     footer: document.getElementById('footer-txt')?.value||''
   };
 }
@@ -22102,13 +22204,33 @@ function ggInviaClienteWA(bookingId){
   window.open('https://api.whatsapp.com/send?phone='+encodeURIComponent(tel)+'&text='+encodeURIComponent(ggTestoInvioCliente(b)), '_blank');
   closeModal();
 }
-function ggInviaClienteMail(bookingId){
+async function ggInviaClienteMail(bookingId){
   var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
   var guests = DB.get('guests') || [];
   var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
   if (!b || !g || !g.email) { showToast('Email non disponibile per questo ospite'); return; }
-  window.location.href = 'mailto:'+encodeURIComponent(g.email)+'?subject='+encodeURIComponent('La tua guida — Greta\'s House')+'&body='+encodeURIComponent(ggTestoInvioCliente(b));
-  closeModal();
+  var s = DB.getObj('settings', {});
+  if (!s.supabaseUrl || !s.supabaseKey) { showToast('Configura prima Supabase in Impostazioni per l\'invio automatico'); return; }
+  showToast('Invio in corso…');
+  try {
+    var res = await fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/invio-ricevuta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+s.supabaseKey, 'apikey': s.supabaseKey },
+      body: JSON.stringify({
+        smtpEmail: s.emailInvioPromemoria, smtpPassword: s.passwordInvioPromemoria,
+        to: g.email, toName: b.guestName,
+        subject: 'La tua guida — Greta\'s House',
+        message: ggTestoInvioCliente(b),
+      })
+    });
+    var data = await res.json();
+    if (!data.ok) throw new Error(data.errore || 'invio non riuscito');
+    showToast('✅ Email inviata a '+g.email);
+    closeModal();
+  } catch (err) {
+    console.error('Errore invio guida via email:', err);
+    showToast('⚠ Invio non riuscito — controlla la configurazione email in Impostazioni');
+  }
 }
 function ggShareMail(){window.location.href="mailto:?subject="+encodeURIComponent("La tua guida — Greta's House")+"&body="+encodeURIComponent(ggBuildText())}
 function ggCopyText(btn){

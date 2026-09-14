@@ -40,6 +40,18 @@
   .item-desc{font-size:.81rem;color:var(--muted);line-height:1.5;margin-top:.15rem}
   .item-dist{font-size:.73rem;color:var(--sky4);font-weight:500;margin-top:.25rem}
   .rule-row{display:flex;align-items:flex-start;gap:.5rem;padding:.4rem 0;font-size:.86rem;line-height:1.55}
+  .appliance-card{background:var(--white);border:1px solid var(--sky2);border-radius:12px;padding:.85rem 1rem;margin-bottom:.7rem}
+  .appliance-name{font-weight:600;font-size:.92rem;color:var(--deep);cursor:pointer;display:flex;align-items:center;gap:.4rem}
+  .appliance-name .ch{font-size:.7rem;color:var(--sky4);transition:transform .2s;margin-left:auto}
+  .appliance-body{display:none;margin-top:.6rem}
+  .appliance-card.open .appliance-body{display:block}
+  .appliance-card.open .ch{transform:rotate(180deg)}
+  .appliance-instr-txt{font-size:.85rem;color:var(--gtext);line-height:1.6;white-space:pre-wrap}
+  .appliance-photos-view{display:flex;flex-wrap:wrap;gap:8px;margin-top:.6rem}
+  .appliance-photos-view img{width:90px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--sky2);cursor:pointer}
+  .lightbox{position:fixed;inset:0;background:rgba(10,30,45,.9);display:none;align-items:center;justify-content:center;z-index:999;padding:1rem}
+  .lightbox.open{display:flex}
+  .lightbox img{max-width:100%;max-height:90vh;border-radius:10px}
   .wave{text-align:center;color:var(--sky3);letter-spacing:.3em;padding:.4rem 0}
   .footer-txt{text-align:center;font-size:.76rem;font-style:italic;color:var(--muted);margin-top:.5rem}
   .loading,.err{text-align:center;padding:3rem 1rem;color:var(--muted);font-size:.9rem}
@@ -48,6 +60,9 @@
 <body>
 <div class="wrap" id="guide">
   <div class="loading">Caricamento della guida…</div>
+</div>
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')">
+  <img id="lightbox-img" src="" alt="">
 </div>
 <script>
 // Progetto Supabase di Greta's House — pagina pubblica di sola lettura, nessun login richiesto.
@@ -64,6 +79,23 @@ function itemHTML(it){
   return '<div class="item-row"><div class="item-dot">'+esc(it.emoji||'📍')+'</div><div><div class="item-name">'+esc(it.name)+'</div><div class="item-desc">'+esc(it.desc)+'</div><div class="item-dist">'+esc(it.dist)+'</div></div></div>';
 }
 function ruleHTML(r){ return '<div class="rule-row"><span>'+esc(r.icon||'📝')+'</span><span>'+esc(r.text)+'</span></div>'; }
+function applianceHTML(a, idx){
+  var fotoHTML = (a.photos||[]).map(function(src){
+    return '<img src="'+src+'" onclick="apriLightbox(\''+src+'\')" alt="'+esc(a.name)+'">';
+  }).join('');
+  return '<div class="appliance-card" id="app-'+idx+'">'+
+    '<div class="appliance-name" onclick="toggleAppliance('+idx+')">'+esc(a.name)+'<span class="ch">▼</span></div>'+
+    '<div class="appliance-body">'+
+      (a.instructions ? '<div class="appliance-instr-txt">'+esc(a.instructions)+'</div>' : '')+
+      (fotoHTML ? '<div class="appliance-photos-view">'+fotoHTML+'</div>' : '')+
+    '</div></div>';
+}
+function toggleAppliance(idx){ document.getElementById('app-'+idx).classList.toggle('open'); }
+function apriLightbox(src){
+  var lb = document.getElementById('lightbox');
+  document.getElementById('lightbox-img').src = src;
+  lb.classList.add('open');
+}
 function sectionHTML(icon, title, inner){
   return '<div class="card"><div class="card-head"><span class="card-icon">'+icon+'</span><span class="card-title">'+title+'</span></div><div class="card-body">'+inner+'</div></div>';
 }
@@ -91,6 +123,7 @@ async function carica(){
     if ((d.beach||[]).length) html += sectionHTML('🏖️','Spiagge e mare', d.beach.map(itemHTML).join(''));
     if ((d.visit||[]).length) html += sectionHTML('🗺️','Luoghi da visitare', d.visit.map(itemHTML).join(''));
     if ((d.act||[]).length) html += sectionHTML('🌞','Esperienze e attività', d.act.map(itemHTML).join(''));
+    if ((d.appliances||[]).length) html += sectionHTML('🔌','Elettrodomestici e comfort', d.appliances.map(applianceHTML).join(''));
     if ((d.rules||[]).length) html += sectionHTML('📋','Note e regole della casa', d.rules.map(ruleHTML).join(''));
     html += '<div class="wave">〜 〜 〜</div>';
     if (d.footer) html += '<div class="footer-txt">'+esc(d.footer)+'</div>';
