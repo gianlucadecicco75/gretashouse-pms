@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/09/2026 · 21:37</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/09/2026 · 21:43</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -21859,6 +21859,10 @@ function renderGuidaOspiti() {
   <p class="sub">Uggiano la Chiesa · Otranto · Puglia</p>
 </div>
 
+<div class="tip-field" style="margin-bottom:1.2rem"><span>📍</span>
+  <textarea rows="2" id="gg-address" style="width:100%" placeholder="Indirizzo completo, distanze utili…">${ggEsc(d.address)}</textarea>
+</div>
+
 <div class="toolbar">
   <span style="font-size:.75rem;color:var(--muted);font-weight:500;letter-spacing:.05em;text-transform:uppercase">Anteprima per gli ospiti</span>
   <div class="share-group">
@@ -21894,9 +21898,16 @@ function renderGuidaOspiti() {
       <button class="cancel-btn" onclick="ggCancelNewField()">✕</button>
     </div>
     <button class="add-btn" id="add-field-btn" onclick="ggShowNewFieldRow()">+ Aggiungi voce personalizzata</button>
-    <div class="tip-field" style="margin-top:.8rem"><span>📍</span>
-      <textarea rows="2" id="gg-address">${ggEsc(d.address)}</textarea>
-    </div>
+  </div>
+</div>
+
+<div class="card" id="s-appliances">
+  <div class="card-head" onclick="ggToggle('s-appliances')">
+    <span class="card-icon">🔌</span><span class="card-title">Elettrodomestici e comfort</span><span class="chevron">▼</span>
+  </div>
+  <div class="card-body" id="appliances-list">
+    ${(d.appliances||[]).map(ggApplianceHTML).join('')}
+    <button class="add-btn" onclick="ggAddAppliance()">+ Aggiungi elettrodomestico</button>
   </div>
 </div>
 
@@ -21947,16 +21958,6 @@ function renderGuidaOspiti() {
   <div class="card-body">
     <div id="act-list">${(d.act||[]).map(ggItemHTML).join('')}</div>
     <button class="add-btn" onclick="ggAddItem('act-list','🎯')">+ Aggiungi attività</button>
-  </div>
-</div>
-
-<div class="card" id="s-appliances">
-  <div class="card-head" onclick="ggToggle('s-appliances')">
-    <span class="card-icon">🔌</span><span class="card-title">Elettrodomestici e comfort</span><span class="chevron">▼</span>
-  </div>
-  <div class="card-body" id="appliances-list">
-    ${(d.appliances||[]).map(ggApplianceHTML).join('')}
-    <button class="add-btn" onclick="ggAddAppliance()">+ Aggiungi elettrodomestico</button>
   </div>
 </div>
 

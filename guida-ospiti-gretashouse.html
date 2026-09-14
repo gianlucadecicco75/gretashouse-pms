@@ -113,17 +113,15 @@ async function carica(){
 
     var html = '';
     html += '<div class="hero"><span class="hero-icon">🏡</span><h1>Benvenuti a Greta\'s House</h1><p class="sub">Uggiano la Chiesa · Otranto · Puglia</p></div>';
+    if (d.address) html += '<div class="tip-field" style="margin-bottom:1.2rem">📍 '+esc(d.address)+'</div>';
     html += sectionHTML('🌊','Messaggio di benvenuto','<div class="tip-field">'+esc(d.welcome).replace(/\n/g,'<br>')+'</div>');
-    html += sectionHTML('🏠','La struttura',
-      '<div class="field-group">'+(d.info||[]).map(fieldHTML).join('')+'</div>'+
-      (d.address ? '<div class="tip-field" style="margin-top:.8rem">📍 '+esc(d.address)+'</div>' : '')
-    );
+    html += sectionHTML('🏠','La struttura', '<div class="field-group">'+(d.info||[]).map(fieldHTML).join('')+'</div>');
+    if ((d.appliances||[]).length) html += sectionHTML('🔌','Elettrodomestici e comfort', d.appliances.map(applianceHTML).join(''));
     if ((d.contacts||[]).length) html += sectionHTML('📞','Contatti utili', '<div class="contacts-grid">'+d.contacts.map(contactHTML).join('')+'</div>');
     if ((d.rest||[]).length) html += sectionHTML('🍽️','Ristoranti consigliati', d.rest.map(itemHTML).join(''));
     if ((d.beach||[]).length) html += sectionHTML('🏖️','Spiagge e mare', d.beach.map(itemHTML).join(''));
     if ((d.visit||[]).length) html += sectionHTML('🗺️','Luoghi da visitare', d.visit.map(itemHTML).join(''));
     if ((d.act||[]).length) html += sectionHTML('🌞','Esperienze e attività', d.act.map(itemHTML).join(''));
-    if ((d.appliances||[]).length) html += sectionHTML('🔌','Elettrodomestici e comfort', d.appliances.map(applianceHTML).join(''));
     if ((d.rules||[]).length) html += sectionHTML('📋','Note e regole della casa', d.rules.map(ruleHTML).join(''));
     html += '<div class="wave">〜 〜 〜</div>';
     if (d.footer) html += '<div class="footer-txt">'+esc(d.footer)+'</div>';
