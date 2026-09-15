@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 15/09/2026 · 08:03</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 15/09/2026 · 08:09</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -21600,6 +21600,10 @@ function archivioOspitiExportXLSX() {
 // ricaricamento della pagina. Al primo utilizzo, se non è stato ancora salvato nulla, si parte
 // dai contenuti di esempio qui sotto (GG_DEFAULT_DATA), tutti modificabili liberamente.
 // ============================================================
+// Testo di default del messaggio inviato al cliente (personalizzabile dall'apposito campo in
+// Guida Ospiti) — {nome}/{checkin}/{checkout}/{link} vengono sostituiti al momento dell'invio.
+const GG_MESSAGGIO_INVIO_DEFAULT = "Ciao {nome}! 🌊\n\nEcco la guida per il tuo soggiorno a Greta's House (dal {checkin} al {checkout}): orari, Wi-Fi, contatti utili, spiagge e ristoranti consigliati.\n\n👉 {link}\n\nA presto!";
+
 const GG_DEFAULT_DATA = {
   welcome: "Benvenuti a Greta's House! Siamo felici di avervi con noi. Questa guida è pensata per aiutarvi a vivere al meglio il vostro soggiorno in questa meravigliosa terra del Salento. Non esitate a contattarci per qualsiasi necessità — siamo qui per rendere la vostra vacanza indimenticabile. 🌊",
   address: "Indirizzo: Via [inserire indirizzo], Uggiano la Chiesa (LE) — a 8 km da Otranto.",
@@ -21863,6 +21867,16 @@ function renderGuidaOspiti() {
   <textarea rows="2" id="gg-address" style="width:100%" placeholder="Indirizzo completo, distanze utili…">${ggEsc(d.address)}</textarea>
 </div>
 
+<div class="card" id="s-msg-invio">
+  <div class="card-head">
+    <span class="card-icon">✉️</span><span class="card-title">Testo del messaggio inviato al cliente</span>
+  </div>
+  <div class="card-body">
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">Usa <code>{nome}</code>, <code>{checkin}</code>, <code>{checkout}</code> e <code>{link}</code> — vengono sostituiti automaticamente con i dati della prenotazione scelta al momento dell'invio.</div>
+    <textarea rows="6" id="gg-msg-invio" style="width:100%;font-family:'DM Sans',sans-serif" placeholder="Ciao {nome}! 🌊${'\n\n'}Ecco la guida per il tuo soggiorno...">${ggEsc(d.messaggioInvio || GG_MESSAGGIO_INVIO_DEFAULT)}</textarea>
+  </div>
+</div>
+
 <div class="toolbar">
   <span style="font-size:.75rem;color:var(--muted);font-weight:500;letter-spacing:.05em;text-transform:uppercase">Anteprima per gli ospiti</span>
   <div class="share-group">
@@ -22115,6 +22129,7 @@ function ggCollectData(){
     act: collectItems('act-list'),
     rules: rules,
     appliances: appliances,
+    messaggioInvio: document.getElementById('gg-msg-invio')?.value||'',
     footer: document.getElementById('footer-txt')?.value||''
   };
 }
@@ -22194,7 +22209,13 @@ function ggApriInvioCliente(){
 }
 function ggTestoInvioCliente(b){
   var s = DB.getObj('settings', {});
-  return 'Ciao '+(b.guestName||'')+'! 🌊\n\nEcco la guida per il tuo soggiorno a Greta\'s House (dal '+fmtDate(b.checkin)+' al '+fmtDate(b.checkout)+'): orari, Wi-Fi, contatti utili, spiagge e ristoranti consigliati.\n\n👉 '+s.guidaOspitiUrl+'\n\nA presto!';
+  var d = DB.getObj('guidaOspiti', null) || GG_DEFAULT_DATA;
+  var modello = d.messaggioInvio || GG_MESSAGGIO_INVIO_DEFAULT;
+  return modello
+    .replace(/\{nome\}/g, b.guestName||'')
+    .replace(/\{checkin\}/g, fmtDate(b.checkin))
+    .replace(/\{checkout\}/g, fmtDate(b.checkout))
+    .replace(/\{link\}/g, s.guidaOspitiUrl||'');
 }
 function ggInviaClienteWA(bookingId){
   var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
