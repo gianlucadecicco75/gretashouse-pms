@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 14/09/2026 · 21:43</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 15/09/2026 · 08:03</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -21775,7 +21775,7 @@ function renderGuidaOspiti() {
 #page-guidaospiti .card-head{background:linear-gradient(90deg,var(--sky),var(--wave));padding:.85rem 1.2rem;display:flex;align-items:center;gap:.6rem;cursor:pointer;user-select:none}
 #page-guidaospiti .card-icon{font-size:1.1rem}
 #page-guidaospiti .card-title{font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:500;color:var(--deep);flex:1}
-#page-guidaospiti .chevron{font-size:.75rem;color:var(--sky4);transition:transform .22s}
+#page-guidaospiti .chevron{font-size:1.3rem;color:var(--sky5);font-weight:700;transition:transform .22s}
 #page-guidaospiti .card.closed .chevron{transform:rotate(-90deg)}
 #page-guidaospiti .card-body{padding:1.1rem 1.2rem}
 #page-guidaospiti .card.closed .card-body{display:none}
@@ -21874,8 +21874,8 @@ function renderGuidaOspiti() {
 </div>
 
 <div class="card" id="s-welcome">
-  <div class="card-head" onclick="ggToggle('s-welcome')">
-    <span class="card-icon">🌊</span><span class="card-title">Messaggio di benvenuto</span><span class="chevron">▼</span>
+  <div class="card-head">
+    <span class="card-icon">🌊</span><span class="card-title">Messaggio di benvenuto</span>
   </div>
   <div class="card-body">
     <div class="tip-field"><span>💬</span>
