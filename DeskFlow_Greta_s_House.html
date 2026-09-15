@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 15/09/2026 · 17:07</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 15/09/2026 · 21:10</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -15366,9 +15366,24 @@ function recensioniInviaRisposta(reservationCode){
 // email (automatica, stessa email configurata per le conferme) — segna chi
 // è già stato contattato per non scrivergli due volte per sbaglio.
 // ══════════════════════════════════════════════════════════════════════════
+// Nazione (come scritta al check-in) → lingua del messaggio. Elenco non esaustivo di proposito:
+// copre le nazionalità più comuni tra gli ospiti — qualunque nazione non elencata usa l'Italiano
+// come riserva (impostabile comunque a piacere in Impostazioni).
+var RC_NAZIONE_LINGUA = {
+  'Italia':'it',
+  'Regno Unito':'en','Stati Uniti':'en','Irlanda':'en','Australia':'en','Canada':'en','Nuova Zelanda':'en',
+  'Germania':'de','Austria':'de','Svizzera':'de',
+  'Francia':'fr','Belgio':'fr',
+};
+function rcRilevaLingua(b){
+  var naz = (b.componenti && b.componenti[0] && b.componenti[0].cittadinanza) || '';
+  return RC_NAZIONE_LINGUA[naz] || 'it';
+}
 function rcTestoRichiesta(b){
   var s = DB.getObj('settings', {});
-  var modello = s.recensioneMsg || 'Ciao {nome}! 🌊\n\nGrazie per aver soggiornato da noi. Se ti va, ci farebbe molto piacere una tua recensione su Google — bastano due minuti:\n\n👉 {link}\n\nGrazie di cuore!';
+  var lang = rcRilevaLingua(b);
+  var modelli = s.recensioneMsgByLang || {};
+  var modello = modelli[lang] || modelli.it || 'Ciao {nome}! 🌊\n\nGrazie per aver soggiornato da noi. Se ti va, ci farebbe molto piacere una tua recensione su Google — bastano due minuti:\n\n👉 {link}\n\nGrazie di cuore!';
   return modello.replace(/\{nome\}/g, b.guestName||'').replace(/\{link\}/g, s.googleReviewUrl||'');
 }
 // Variante rapida: apre direttamente le opzioni di invio per UNA prenotazione specifica (dal
@@ -15411,8 +15426,10 @@ function rcApriInvioRichiesta(){
       var tel = g && g.phone ? g.phone : '';
       var mail = g && g.email ? g.email : '';
       var giaChiesto = !!b.recensioneRichiesta;
+      var bandiere = {it:'🇮🇹',en:'🇬🇧',de:'🇩🇪',fr:'🇫🇷'};
+      var lingua = bandiere[rcRilevaLingua(b)] || '🇮🇹';
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:.5px solid var(--border);border-radius:8px;'+(giaChiesto?'opacity:.55':'')+'">'+
-        '<div><div style="font-weight:700;font-size:13px">'+(giaChiesto?'✓ ':'')+(b.guestName||'').replace(/</g,'&lt;')+'</div>'+
+        '<div><div style="font-weight:700;font-size:13px">'+(giaChiesto?'✓ ':'')+(b.guestName||'').replace(/</g,'&lt;')+' <span title="Lingua del messaggio">'+lingua+'</span></div>'+
         '<div style="font-size:11.5px;color:var(--text3)">Partito il '+fmtDate(b.checkout)+' · '+(b.roomName||'')+(tel?' · 📞 '+tel:'')+'</div></div>'+
         '<div style="display:flex;gap:5px">'+
           '<button class="btn btn-sm" '+(tel?'':'disabled title="Nessun telefono salvato"')+' onclick="rcInviaWA(\''+b.id+'\')">💬</button>'+
@@ -29602,9 +29619,20 @@ function renderImpostazioni() {
               <input type="text" id="s-google-review-url" value="${s.googleReviewUrl||''}" placeholder="https://g.page/r/.../review">
             </div>
             <div class="form-group full">
-              <label>Testo del messaggio richiesta recensione</label>
-              <div style="font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:4px">Usa <code>{nome}</code> e <code>{link}</code> — vengono sostituiti automaticamente.</div>
-              <textarea id="s-recensione-msg" rows="4" style="width:100%">${(s.recensioneMsg||'Ciao {nome}! 🌊\n\nGrazie per aver soggiornato da noi. Se ti va, ci farebbe molto piacere una tua recensione su Google — bastano due minuti:\n\n👉 {link}\n\nGrazie di cuore!').replace(/"/g,'&quot;')}</textarea>
+              <label>Messaggio richiesta recensione — una versione per lingua</label>
+              <div style="font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:8px">Usa <code>{nome}</code> e <code>{link}</code> — vengono sostituiti automaticamente. In base alla cittadinanza registrata al check-in dell'ospite, il PMS sceglie da solo la lingua giusta (se non riconosciuta, usa l'Italiano).</div>
+              ${['it','en','de','fr'].map(function(lang){
+                var nomiLingua = {it:'🇮🇹 Italiano (riserva/default)', en:'🇬🇧 Inglese', de:'🇩🇪 Tedesco', fr:'🇫🇷 Francese'};
+                var defaults = {
+                  it: 'Ciao {nome}! 🌊\n\nGrazie per aver soggiornato da noi. Se ti va, ci farebbe molto piacere una tua recensione su Google — bastano due minuti:\n\n👉 {link}\n\nGrazie di cuore!',
+                  en: 'Hi {nome}! 🌊\n\nThank you for staying with us. If you have a moment, we would really appreciate a Google review — it only takes two minutes:\n\n👉 {link}\n\nThank you so much!',
+                  de: 'Hallo {nome}! 🌊\n\nVielen Dank für Ihren Aufenthalt bei uns. Wir würden uns sehr über eine Google-Bewertung freuen — es dauert nur zwei Minuten:\n\n👉 {link}\n\nHerzlichen Dank!',
+                  fr: 'Bonjour {nome}! \ud83c\udf0a\n\nMerci de votre s\u00e9jour chez nous. Si vous avez un instant, votre avis Google nous ferait tr\u00e8s plaisir \u2014 cela ne prend que deux minutes:\n\n\ud83d\udc49 {link}\n\nMerci beaucoup!'
+                };
+                var valore = (s.recensioneMsgByLang && s.recensioneMsgByLang[lang]) || defaults[lang];
+                return '<label style="font-size:11.5px;font-weight:600;margin-top:8px;display:block">'+nomiLingua[lang]+'</label>'+
+                  '<textarea id="s-recensione-msg-'+lang+'" rows="4" style="width:100%">'+valore.replace(/</g,'&lt;')+'</textarea>';
+              }).join('')}
             </div>
             <div class="form-group full">
               <label>Email Amministratore Generale (solo per l'etichetta mostrata — non limita nessun potere)</label>
@@ -30278,7 +30306,10 @@ function saveImpostazioni() {
   s.emailAdminGenerale = document.getElementById('s-email-admin-generale')?.value.trim().toLowerCase() || '';
   s.guidaOspitiUrl = document.getElementById('s-guida-ospiti-url')?.value.trim() || '';
   s.googleReviewUrl = document.getElementById('s-google-review-url')?.value.trim() || '';
-  s.recensioneMsg = document.getElementById('s-recensione-msg')?.value || '';
+  s.recensioneMsgByLang = {};
+  ['it','en','de','fr'].forEach(function(lang){
+    s.recensioneMsgByLang[lang] = document.getElementById('s-recensione-msg-'+lang)?.value || '';
+  });
   s.currency      = document.getElementById('s-currency').value;
   // s.logo non va toccato qui: resta quello già salvato, si cambia solo con Carica/Rimuovi logo
   s.cityTax          = parseFloat(document.getElementById('s-tax').value)||0;
