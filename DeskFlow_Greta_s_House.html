@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 15/09/2026 · 08:09</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 15/09/2026 · 17:07</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -15360,11 +15360,127 @@ function recensioniInviaRisposta(reservationCode){
   }).catch(function(err){ showToast('Invio non riuscito'); console.error(err); });
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// RICHIEDI RECENSIONE GOOGLE — richiesto da Gian: scegliere un ospite già
+// partito e mandargli il link della pagina recensioni Google, via WhatsApp o
+// email (automatica, stessa email configurata per le conferme) — segna chi
+// è già stato contattato per non scrivergli due volte per sbaglio.
+// ══════════════════════════════════════════════════════════════════════════
+function rcTestoRichiesta(b){
+  var s = DB.getObj('settings', {});
+  var modello = s.recensioneMsg || 'Ciao {nome}! 🌊\n\nGrazie per aver soggiornato da noi. Se ti va, ci farebbe molto piacere una tua recensione su Google — bastano due minuti:\n\n👉 {link}\n\nGrazie di cuore!';
+  return modello.replace(/\{nome\}/g, b.guestName||'').replace(/\{link\}/g, s.googleReviewUrl||'');
+}
+// Variante rapida: apre direttamente le opzioni di invio per UNA prenotazione specifica (dal
+// pulsante dentro la scheda prenotazione), senza dover cercare il cliente nell'elenco completo.
+function rcApriInvioRichiestaSingola(bookingId){
+  var s = DB.getObj('settings', {});
+  if (!s.googleReviewUrl) { showToast('Imposta prima il link della pagina recensioni Google in Impostazioni'); return; }
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  if (!b) return;
+  var guests = DB.get('guests') || [];
+  var g = b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+  var tel = g && g.phone ? g.phone : '';
+  var mail = g && g.email ? g.email : '';
+  showModal('Richiedi recensione a '+(b.guestName||''),
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:12px">'+(b.recensioneRichiesta?'⚠ Già contattato in precedenza — puoi comunque inviare di nuovo se vuoi.':'')+'</div>'+
+    '<div style="display:flex;gap:8px">'+
+      '<button class="btn" style="flex:1" '+(tel?'':'disabled')+' onclick="rcInviaWA(\''+b.id+'\')">💬 WhatsApp'+(tel?'':' (nessun telefono)')+'</button>'+
+      '<button class="btn" style="flex:1" '+(mail?'':'disabled')+' onclick="rcInviaMail(\''+b.id+'\')">✉️ Email'+(mail?'':' (nessuna email)')+'</button>'+
+    '</div>',
+    '<button class="btn" onclick="closeModal()">Annulla</button>'
+  );
+}
+function rcApriInvioRichiesta(){
+  var s = DB.getObj('settings', {});
+  if (!s.googleReviewUrl) { showToast('Imposta prima il link della pagina recensioni Google in Impostazioni'); return; }
+  var oggi = today();
+  var dal = addDays(oggi, -60);
+  var guests = DB.get('guests') || [];
+  var bks = (DB.get('bookings')||[]).filter(function(b){
+    return b.status !== 'cancellata' && b.checkout < oggi && b.checkout >= dal;
+  }).sort(function(a,b){ return (b.checkout||'').localeCompare(a.checkout||''); });
+
+  if (!bks.length) { showToast('Nessun ospite partito negli ultimi 60 giorni'); return; }
+
+  showModal('Richiedi recensione Google',
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Ospiti partiti negli ultimi 60 giorni — quelli già contattati sono segnati con ✓.</div>'+
+    '<div style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">'+
+    bks.map(function(b){
+      var g = b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+      var tel = g && g.phone ? g.phone : '';
+      var mail = g && g.email ? g.email : '';
+      var giaChiesto = !!b.recensioneRichiesta;
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:.5px solid var(--border);border-radius:8px;'+(giaChiesto?'opacity:.55':'')+'">'+
+        '<div><div style="font-weight:700;font-size:13px">'+(giaChiesto?'✓ ':'')+(b.guestName||'').replace(/</g,'&lt;')+'</div>'+
+        '<div style="font-size:11.5px;color:var(--text3)">Partito il '+fmtDate(b.checkout)+' · '+(b.roomName||'')+(tel?' · 📞 '+tel:'')+'</div></div>'+
+        '<div style="display:flex;gap:5px">'+
+          '<button class="btn btn-sm" '+(tel?'':'disabled title="Nessun telefono salvato"')+' onclick="rcInviaWA(\''+b.id+'\')">💬</button>'+
+          '<button class="btn btn-sm" '+(mail?'':'disabled title="Nessuna email salvata"')+' onclick="rcInviaMail(\''+b.id+'\')">✉️</button>'+
+        '</div></div>';
+    }).join('')+
+    '</div>',
+    '<button class="btn" onclick="closeModal()">Chiudi</button>'
+  );
+}
+function rcSegnaRichiesta(bookingId){
+  var bookings = DB.get('bookings') || [];
+  var idx = bookings.findIndex(function(x){ return x.id===bookingId; });
+  if (idx>=0) { bookings[idx].recensioneRichiesta = true; DB.set('bookings', bookings); }
+}
+function rcInviaWA(bookingId){
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  var guests = DB.get('guests') || [];
+  var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+  if (!b || !g || !g.phone) { showToast('Telefono non disponibile'); return; }
+  var tel = g.phone.replace(/[^\d+]/g,'');
+  window.open('https://api.whatsapp.com/send?phone='+encodeURIComponent(tel)+'&text='+encodeURIComponent(rcTestoRichiesta(b)), '_blank');
+  rcSegnaRichiesta(bookingId);
+  closeModal();
+  showToast('✅ Segnato come contattato');
+}
+async function rcInviaMail(bookingId){
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  var guests = DB.get('guests') || [];
+  var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+  if (!b || !g || !g.email) { showToast('Email non disponibile'); return; }
+  var s = DB.getObj('settings', {});
+  if (!s.supabaseUrl || !s.supabaseKey) { showToast('Configura prima Supabase in Impostazioni'); return; }
+  showToast('Invio in corso…');
+  try {
+    var res = await fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/invio-ricevuta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+s.supabaseKey, 'apikey': s.supabaseKey },
+      body: JSON.stringify({
+        smtpEmail: s.emailInvioPromemoria, smtpPassword: s.passwordInvioPromemoria,
+        to: g.email, toName: b.guestName,
+        subject: 'La tua opinione conta per noi 🌊',
+        message: rcTestoRichiesta(b),
+      })
+    });
+    var data = await res.json();
+    if (!data.ok) throw new Error(data.errore || 'invio non riuscito');
+    rcSegnaRichiesta(bookingId);
+    showToast('✅ Email inviata a '+g.email);
+    closeModal();
+  } catch (err) {
+    console.error('Errore invio richiesta recensione:', err);
+    showToast('⚠ Invio non riuscito — controlla la configurazione email in Impostazioni');
+  }
+}
+
 function renderRecensioni(){
   var html = '<div class="page-header"><div><div class="page-title">⭐ Recensioni</div>'+
     '<div class="page-subtitle">Lette e rispondibili direttamente da qui, tramite Hostex</div></div>'+
     '<button class="btn btn-primary" onclick="recensioniCaricaSubito()" '+(recensioniCaricamento?'disabled':'')+'>'+(recensioniCaricamento?'⏳ Caricamento…':'🔄 Aggiorna recensioni')+'</button>'+
     '</div><div class="page-content">';
+
+  html += '<div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:4px solid #fbbc04">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">'+
+    '<div><div style="font-weight:700;font-size:14px">🌟 Chiedi una recensione Google agli ospiti già partiti</div>'+
+    '<div style="font-size:12px;color:var(--text3);margin-top:2px">Scegli chi ha soggiornato di recente e manda il link della tua pagina Google direttamente da qui.</div></div>'+
+    '<button class="btn btn-primary" onclick="rcApriInvioRichiesta()">📤 Richiedi recensione a un cliente</button>'+
+    '</div></div>';
 
   if (!recensioniCache.length && !recensioniCaricamento) {
     html += '<div class="empty-state"><p>Premi "Aggiorna recensioni" per caricarle da Hostex.</p></div>';
@@ -19912,6 +20028,7 @@ function openDettaglioPrenotazione(id) {
         `<button class="btn" onclick="closeModal(); apriContoScegli('${b.id}')">🧾 Conto</button>` +
         `<button class="btn" onclick="apriProforma('${b.id}')" title="Riepilogo dell'importo dovuto da mostrare/stampare, senza registrare nulla nei Corrispettivi">📋 Proforma</button>` +
         `<button class="btn" onclick="stampaSchedaPrenotazione('${b.id}')">🖨 Stampa scheda</button>` +
+        (b.checkout < today() ? `<button class="btn" style="background:#fbbc04;color:#000;border-color:#fbbc04" onclick="closeModal(); rcApriInvioRichiestaSingola('${b.id}')">⭐ Richiedi recensione</button>` : '') +
       '</div>' +
       (function(){
         const corrTxFooter = (typeof corrState !== 'undefined' && corrState && corrState.transactions)
@@ -29481,6 +29598,15 @@ function renderImpostazioni() {
               <input type="text" id="s-guida-ospiti-url" value="${s.guidaOspitiUrl||''}" placeholder="https://.../guida-ospiti-gretashouse.html">
             </div>
             <div class="form-group full">
+              <label>Link pagina recensioni Google</label>
+              <input type="text" id="s-google-review-url" value="${s.googleReviewUrl||''}" placeholder="https://g.page/r/.../review">
+            </div>
+            <div class="form-group full">
+              <label>Testo del messaggio richiesta recensione</label>
+              <div style="font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:4px">Usa <code>{nome}</code> e <code>{link}</code> — vengono sostituiti automaticamente.</div>
+              <textarea id="s-recensione-msg" rows="4" style="width:100%">${(s.recensioneMsg||'Ciao {nome}! 🌊\n\nGrazie per aver soggiornato da noi. Se ti va, ci farebbe molto piacere una tua recensione su Google — bastano due minuti:\n\n👉 {link}\n\nGrazie di cuore!').replace(/"/g,'&quot;')}</textarea>
+            </div>
+            <div class="form-group full">
               <label>Email Amministratore Generale (solo per l'etichetta mostrata — non limita nessun potere)</label>
               <input type="email" id="s-email-admin-generale" value="${s.emailAdminGenerale||''}" placeholder="tuaemail@...">
               <div style="font-size:11px;color:var(--text3);margin-top:3px">Chi accede con questa email vede scritto "Amministratore Generale"; chiunque altro non limitato in Utenti & Permessi vede "Amministratore di struttura" — entrambi hanno comunque pieni poteri su questa struttura, è solo un'etichetta per riconoscere a colpo d'occhio chi ha una visione su tutte le strutture.</div>
@@ -30151,6 +30277,8 @@ function saveImpostazioni() {
   s.hubUrl        = document.getElementById('s-hub-url')?.value.trim() || '';
   s.emailAdminGenerale = document.getElementById('s-email-admin-generale')?.value.trim().toLowerCase() || '';
   s.guidaOspitiUrl = document.getElementById('s-guida-ospiti-url')?.value.trim() || '';
+  s.googleReviewUrl = document.getElementById('s-google-review-url')?.value.trim() || '';
+  s.recensioneMsg = document.getElementById('s-recensione-msg')?.value || '';
   s.currency      = document.getElementById('s-currency').value;
   // s.logo non va toccato qui: resta quello già salvato, si cambia solo con Carica/Rimuovi logo
   s.cityTax          = parseFloat(document.getElementById('s-tax').value)||0;
