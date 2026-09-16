@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 15/09/2026 · 21:10</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 16/09/2026 · 05:25</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -15379,6 +15379,17 @@ function rcRilevaLingua(b){
   var naz = (b.componenti && b.componenti[0] && b.componenti[0].cittadinanza) || '';
   return RC_NAZIONE_LINGUA[naz] || 'it';
 }
+// Cambia quale casella di testo (lingua) è visibile in Impostazioni — solo estetico, non tocca i
+// dati salvati (restano tutti compilati anche se non visibili al momento).
+function rcCambiaSchedaLingua(lang){
+  document.querySelectorAll('.rc-lang-tab').forEach(function(btn){
+    btn.style.background = btn.dataset.lang===lang ? 'var(--accent)' : '';
+    btn.style.color = btn.dataset.lang===lang ? '#fff' : '';
+  });
+  document.querySelectorAll('.rc-lang-pane').forEach(function(el){
+    el.style.display = el.dataset.lang===lang ? '' : 'none';
+  });
+}
 function rcTestoRichiesta(b){
   var s = DB.getObj('settings', {});
   var lang = rcRilevaLingua(b);
@@ -29565,7 +29576,7 @@ function otaCanaliSalvaLista(lista){ DB.set('otaCanali', lista); }
 function renderCanaliOTAHTML(){
   var lista = otaCanaliGetLista();
   var tariffe = getTariffe();
-  return '<div class="card" style="max-width:700px;flex:1 1 640px">'+
+  return '<div class="card" id="imp-sez-canali-ota" style="max-width:700px;flex:1 1 640px">'+
     '<div class="card-header"><span class="card-title">🔌 Canali OTA collegati</span></div>'+
     '<div class="modal-body">'+
     '<p style="font-size:12px;color:var(--text3);margin-bottom:12px">Aggiungi qui ogni annuncio collegato su Hostex (uno per ogni combinazione portale + tariffa, come li vedi su Hostex → Account Collegati). Servono per generare i pulsanti "Chiudi vendite" per singolo portale, nella barra laterale — non serve più modificare il codice per aggiungerne uno nuovo.</p>'+
@@ -29597,47 +29608,15 @@ function renderImpostazioni() {
   document.getElementById('page-impostazioni').innerHTML = `
     <div class="page-header"><div><div class="page-title">Impostazioni</div></div></div>
     <div class="page-content" style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <div style="position:sticky;top:0;z-index:50;background:var(--surface,#fff);border-bottom:1px solid var(--border2);padding:8px 4px;margin-bottom:14px;display:flex;gap:6px;overflow-x:auto;width:100%"><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-canali-ota').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🔌 Canali OTA collegati</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-0').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Struttura</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-1').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🔗 Collegamenti & accessi</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-2').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">⭐ Recensioni Google</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-3').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Housekeeping</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-4').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Tassa di soggiorno</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-5').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Dati società</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-6').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Backup completo / trasferimento dati</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-7').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Margine per i portali (OTA)</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-8').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Aspetto Calendario</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-9').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🛏️ Supplementi in camera</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-10').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🎨 Colori prenotazioni</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-11').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Scelta camera dal preventivo</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-12').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modello messaggio preventivo</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-13').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modelli di messaggio</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-14').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Check-in online e prenotazione web</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-15').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modello messaggio di conferma prenotazione</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-16').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Scansione documenti — link per la reception</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-17').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Housekeeping — link per le pulizie</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-18').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Sincronizzazione multi-PC (Supabase)</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-19').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Invio email reale</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-20').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Dati</button></div>
       ${renderCanaliOTAHTML()}
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-0" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Struttura</span></div>
         <div class="modal-body">
           <div class="form-grid">
             <div class="form-group full">
               <label>Nome struttura</label>
               <input type="text" id="s-name" value="${s.propertyName||''}" placeholder="Il tuo hotel">
-            </div>
-            <div class="form-group full">
-              <label>Indirizzo pagina Hub Amministratore (per "🔀 Torna all'Hub" in barra laterale)</label>
-              <input type="text" id="s-hub-url" value="${s.hubUrl||''}" placeholder="https://.../hub-amministratore.html">
-            </div>
-            <div class="form-group full">
-              <label>Indirizzo pagina pubblica Guida Ospiti (da inviare ai clienti)</label>
-              <input type="text" id="s-guida-ospiti-url" value="${s.guidaOspitiUrl||''}" placeholder="https://.../guida-ospiti-gretashouse.html">
-            </div>
-            <div class="form-group full">
-              <label>Link pagina recensioni Google</label>
-              <input type="text" id="s-google-review-url" value="${s.googleReviewUrl||''}" placeholder="https://g.page/r/.../review">
-            </div>
-            <div class="form-group full">
-              <label>Messaggio richiesta recensione — una versione per lingua</label>
-              <div style="font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:8px">Usa <code>{nome}</code> e <code>{link}</code> — vengono sostituiti automaticamente. In base alla cittadinanza registrata al check-in dell'ospite, il PMS sceglie da solo la lingua giusta (se non riconosciuta, usa l'Italiano).</div>
-              ${['it','en','de','fr'].map(function(lang){
-                var nomiLingua = {it:'🇮🇹 Italiano (riserva/default)', en:'🇬🇧 Inglese', de:'🇩🇪 Tedesco', fr:'🇫🇷 Francese'};
-                var defaults = {
-                  it: 'Ciao {nome}! 🌊\n\nGrazie per aver soggiornato da noi. Se ti va, ci farebbe molto piacere una tua recensione su Google — bastano due minuti:\n\n👉 {link}\n\nGrazie di cuore!',
-                  en: 'Hi {nome}! 🌊\n\nThank you for staying with us. If you have a moment, we would really appreciate a Google review — it only takes two minutes:\n\n👉 {link}\n\nThank you so much!',
-                  de: 'Hallo {nome}! 🌊\n\nVielen Dank für Ihren Aufenthalt bei uns. Wir würden uns sehr über eine Google-Bewertung freuen — es dauert nur zwei Minuten:\n\n👉 {link}\n\nHerzlichen Dank!',
-                  fr: 'Bonjour {nome}! \ud83c\udf0a\n\nMerci de votre s\u00e9jour chez nous. Si vous avez un instant, votre avis Google nous ferait tr\u00e8s plaisir \u2014 cela ne prend que deux minutes:\n\n\ud83d\udc49 {link}\n\nMerci beaucoup!'
-                };
-                var valore = (s.recensioneMsgByLang && s.recensioneMsgByLang[lang]) || defaults[lang];
-                return '<label style="font-size:11.5px;font-weight:600;margin-top:8px;display:block">'+nomiLingua[lang]+'</label>'+
-                  '<textarea id="s-recensione-msg-'+lang+'" rows="4" style="width:100%">'+valore.replace(/</g,'&lt;')+'</textarea>';
-              }).join('')}
-            </div>
-            <div class="form-group full">
-              <label>Email Amministratore Generale (solo per l'etichetta mostrata — non limita nessun potere)</label>
-              <input type="email" id="s-email-admin-generale" value="${s.emailAdminGenerale||''}" placeholder="tuaemail@...">
-              <div style="font-size:11px;color:var(--text3);margin-top:3px">Chi accede con questa email vede scritto "Amministratore Generale"; chiunque altro non limitato in Utenti & Permessi vede "Amministratore di struttura" — entrambi hanno comunque pieni poteri su questa struttura, è solo un'etichetta per riconoscere a colpo d'occhio chi ha una visione su tutte le strutture.</div>
             </div>
             <div class="form-group">
               <label>Valuta</label>
@@ -29667,7 +29646,56 @@ function renderImpostazioni() {
             </div>
       </div></div></div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-1" style="max-width:500px;flex:1 1 460px">
+        <div class="card-header"><span class="card-title">🔗 Collegamenti & accessi</span></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Indirizzo pagina Hub Amministratore (per "🔀 Torna all'Hub" in barra laterale)</label>
+              <input type="text" id="s-hub-url" value="${s.hubUrl||''}" placeholder="https://.../hub-amministratore.html">
+            </div>
+            <div class="form-group full">
+              <label>Indirizzo pagina pubblica Guida Ospiti (da inviare ai clienti)</label>
+              <input type="text" id="s-guida-ospiti-url" value="${s.guidaOspitiUrl||''}" placeholder="https://.../guida-ospiti-gretashouse.html">
+            </div>
+            <div class="form-group full">
+              <label>Email Amministratore Generale (solo per l'etichetta mostrata — non limita nessun potere)</label>
+              <input type="email" id="s-email-admin-generale" value="${s.emailAdminGenerale||''}" placeholder="tuaemail@...">
+              <div style="font-size:11px;color:var(--text3);margin-top:3px">Chi accede con questa email vede scritto "Amministratore Generale"; chiunque altro non limitato in Utenti & Permessi vede "Amministratore di struttura" — entrambi hanno comunque pieni poteri su questa struttura, è solo un'etichetta per riconoscere a colpo d'occhio chi ha una visione su tutte le strutture.</div>
+            </div>
+      </div></div></div>
+
+      <div class="card" id="imp-sez-2" style="max-width:500px;flex:1 1 460px">
+        <div class="card-header"><span class="card-title">⭐ Recensioni Google</span></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Link pagina recensioni Google</label>
+              <input type="text" id="s-google-review-url" value="${s.googleReviewUrl||''}" placeholder="https://g.page/r/.../review">
+            </div>
+            <div class="form-group full">
+              <label>Messaggio richiesta recensione — una versione per lingua</label>
+              <div style="font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:8px">Usa <code>{nome}</code> e <code>{link}</code> — vengono sostituiti automaticamente. In base alla cittadinanza registrata al check-in dell'ospite, il PMS sceglie da solo la lingua giusta (se non riconosciuta, usa l'Italiano).</div>
+              <div style="display:flex;gap:4px;margin-bottom:8px" id="rc-lang-tabs">
+                ${['it','en','de','fr'].map(function(lang,i){
+                  var bandiere = {it:'🇮🇹 IT', en:'🇬🇧 EN', de:'🇩🇪 DE', fr:'🇫🇷 FR'};
+                  return '<button type="button" class="btn btn-sm rc-lang-tab" data-lang="'+lang+'" onclick="rcCambiaSchedaLingua(\''+lang+'\')" style="'+(i===0?'background:var(--accent);color:#fff':'')+'">'+bandiere[lang]+'</button>';
+                }).join('')}
+              </div>
+              ${['it','en','de','fr'].map(function(lang, i){
+                var defaults = {
+                  it: 'Ciao {nome}! 🌊\n\nGrazie per aver soggiornato da noi. Se ti va, ci farebbe molto piacere una tua recensione su Google — bastano due minuti:\n\n👉 {link}\n\nGrazie di cuore!',
+                  en: 'Hi {nome}! 🌊\n\nThank you for staying with us. If you have a moment, we would really appreciate a Google review — it only takes two minutes:\n\n👉 {link}\n\nThank you so much!',
+                  de: 'Hallo {nome}! 🌊\n\nVielen Dank für Ihren Aufenthalt bei uns. Wir würden uns sehr über eine Google-Bewertung freuen — es dauert nur zwei Minuten:\n\n👉 {link}\n\nHerzlichen Dank!',
+                  fr: 'Bonjour {nome}! \ud83c\udf0a\n\nMerci de votre s\u00e9jour chez nous. Si vous avez un instant, votre avis Google nous ferait tr\u00e8s plaisir \u2014 cela ne prend que deux minutes:\n\n\ud83d\udc49 {link}\n\nMerci beaucoup!'
+                };
+                var valore = (s.recensioneMsgByLang && s.recensioneMsgByLang[lang]) || defaults[lang];
+                return '<textarea id="s-recensione-msg-'+lang+'" class="rc-lang-pane" data-lang="'+lang+'" rows="5" style="width:100%;'+(i===0?'':'display:none')+'">'+valore.replace(/</g,'&lt;')+'</textarea>';
+              }).join('')}
+            </div>
+      </div></div></div>
+
+      <div class="card" id="imp-sez-3" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Housekeeping</span></div>
         <div class="modal-body">
           <div class="form-grid">
@@ -29680,7 +29708,7 @@ function renderImpostazioni() {
             </div>
       </div></div></div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-4" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Tassa di soggiorno</span></div>
         <div class="modal-body">
           <div class="form-grid">
@@ -29705,7 +29733,7 @@ function renderImpostazioni() {
             </div>
       </div></div></div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-5" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Dati società</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Questi dati compaiono in testa al conto stampato, insieme a nome struttura, logo e indirizzo.</div>
         <div class="modal-body">
@@ -29771,7 +29799,7 @@ function renderImpostazioni() {
           </div>
       </div></div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-6" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Backup completo / trasferimento dati</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Esporta <strong>tutti</strong> i dati del programma (Ospiti, Listino, Tariffe, Corrispettivi, Preventivi, Condizioni, impostazioni) in un unico file, per trasferirli su un altro dispositivo (es. smartphone) o come backup di sicurezza. Camere/Prenotazioni/Blocco camere non servono, se già collegate a Supabase si sincronizzano da sole.</div>
         <div class="modal-body">
@@ -29784,7 +29812,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-7" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Margine per i portali (OTA)</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Percentuale da aggiungere al tuo prezzo diretto quando aggiorni manualmente i prezzi su Booking.com, Airbnb ecc. — nel Listino vedrai il prezzo già calcolato, pronto da copiare.</div>
         <div class="modal-body">
@@ -29798,7 +29826,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-8" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Aspetto Calendario</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Larghezza delle colonne dei giorni nel Calendario prenotazioni.</div>
         <div class="modal-body">
@@ -29812,7 +29840,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-9" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">🛏️ Supplementi in camera</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Scelte extra da poter selezionare in ogni prenotazione (es. culla, brandina) — una per riga, nel formato "Iniziale - Nome - Prezzo al giorno in €". Il prezzo è facoltativo (lascialo vuoto o a 0 se non vuoi calcolarlo in automatico). Quando lo selezioni in una prenotazione, l'importo (prezzo × notti) viene aggiunto da solo tra gli Extra — e resta modificabile lì come qualsiasi altro extra. L'iniziale comparirà anche accanto alla tipologia camera nell'Housekeeping.</div>
         <div class="modal-body">
@@ -29823,7 +29851,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-10" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">🎨 Colori prenotazioni</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Il colore delle barre nel Calendario/Planning, in base allo stato della prenotazione. Puoi scegliere un colore libero o cliccarne uno tra quelli predefiniti.</div>
         <div class="modal-body">
@@ -29849,7 +29877,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-11" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Scelta camera dal preventivo</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Indirizzo dove hai pubblicato la pagina <code>scegli-preventivo.html</code> (stesso sito di prenota.html). Quando un preventivo ha più camere proposte, il cliente riceve questo link e può scegliere direttamente quella che preferisce.</div>
         <div class="modal-body">
@@ -29863,7 +29891,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-12" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Modello messaggio preventivo</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Il testo che parte quando invii un preventivo (pulsante "Invia preventivo"). Lascialo vuoto per usare il testo automatico di sempre. Vale solo per l'italiano — l'inglese resta automatico.</div>
         <div class="modal-body">
@@ -29878,7 +29906,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-13" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Modelli di messaggio</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Messaggi pronti da riusare quando scrivi a un cliente da una prenotazione (es. promemoria arrivo, richiesta documenti). Sincronizzati automaticamente su tutti i PC collegati a Supabase. Segnaposto disponibili: <code>{titolo}</code> <code>{nome}</code> <code>{camera}</code> <code>{tipologia}</code> <code>{checkin}</code> <code>{checkout}</code> <code>{notti}</code> <code>{persone}</code> <code>{struttura}</code> <code>{totale}</code> <code>{tassa}</code> <code>{extra}</code> <code>{totale_completo}</code> <code>{telefono_struttura}</code></div>
         <div class="modal-body">
@@ -29887,7 +29915,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-14" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Check-in online e prenotazione web</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Indirizzo dove hai pubblicato le pagine pubbliche (es. sul tuo sito, insieme a prenota.html).</div>
         <div class="modal-body">
@@ -29916,7 +29944,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-15" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Modello messaggio di conferma prenotazione</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Il testo che parte quando invii "Invia conferma" (anche subito dopo aver creato una prenotazione dal Planning). Lascialo vuoto per usare il testo automatico di sempre. Vale solo per l'italiano — l'inglese resta automatico.</div>
         <div class="modal-body">
@@ -29931,7 +29959,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-16" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Scansione documenti — link per la reception</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Indirizzo dove hai pubblicato la pagina di scansione documenti (scansione.html) — protetta da password propria, diversa da quella delle pulizie.</div>
         <div class="modal-body">
@@ -29955,7 +29983,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-17" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Housekeeping — link per le pulizie</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Indirizzo dove hai pubblicato la pagina pubblica per il personale delle pulizie (pulizie.html) — non richiede login, mostra solo camera, tipologia, allestimento, persone e note: niente nomi ospiti, niente prezzi.</div>
         <div class="modal-body">
@@ -29979,7 +30007,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-18" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Sincronizzazione multi-PC (Supabase)</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Collega Camere, Prenotazioni, Blocco camere, Ospiti, Listino prezzi, Tariffe, Preventivi, Corrispettivi e Impostazioni/Condizioni a un database condiviso online, così più postazioni possono lavorarci contemporaneamente e vedere gli aggiornamenti in tempo reale. Richiede connessione internet.</div>
         <div class="modal-body">
@@ -30009,7 +30037,7 @@ function renderImpostazioni() {
           </div>
       </div></div>
 
-      <div class="card" style="max-width:500px;flex:1 1 460px">
+      <div class="card" id="imp-sez-19" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Invio email reale</span></div>
         <div class="sub" style="margin:-6px 0 14px;font-size:12px;color:var(--text3)">Preventivi, conferme, ricevute e messaggi vengono inviati per davvero da <strong>l'email della struttura</strong> tramite la funzione Supabase già collegata sopra — non serve nessuna configurazione aggiuntiva qui, basta che Supabase sia configurato e connesso.</div>
         <div class="modal-body">
@@ -30114,7 +30142,7 @@ function renderImpostazioni() {
         </div>
       </div>
 
-      <div class="card" style="max-width:500px; margin-top:16px">
+      <div class="card" id="imp-sez-20" style="max-width:500px; margin-top:16px">
         <div class="card-header"><span class="card-title">Dati</span></div>
         <div class="modal-body">
           <p style="font-size:13px; color:var(--text2); margin-bottom:12px">I dati sono salvati nel browser (localStorage). Usa esporta/importa per backup.</p>
