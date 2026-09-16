@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 16/09/2026 · 05:25</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 16/09/2026 · 17:14</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -15517,7 +15517,13 @@ function renderRecensioni(){
   } else {
     html += '<div style="display:flex;flex-direction:column;gap:10px">' +
       recensioniCache.map(function(r){
-        var stelle = r.voto!=null ? '⭐'.repeat(Math.round(r.voto)) + ' ('+r.voto+'/5)' : '(voto non disponibile)';
+        // Booking.com usa una scala da 1 a 10 sul proprio sito, ma Hostex la converte in una
+        // scala da 1 a 5 — mostriamo qui il numero come lo vedrebbe Gian direttamente su
+        // Booking.com (raddoppiato), non quello convertito, per riconoscerlo a colpo d'occhio.
+        var isBooking = (r.canale||'').toLowerCase().indexOf('booking')>-1;
+        var stelle = r.voto==null ? '(voto non disponibile)'
+          : isBooking ? '⭐'.repeat(Math.round(r.voto)) + ' ('+(r.voto*2)+'/10 su Booking.com)'
+          : '⭐'.repeat(Math.round(r.voto)) + ' ('+r.voto+'/5)';
         return '<div class="card" style="padding:14px 18px">'+
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'+
           '<div>'+
