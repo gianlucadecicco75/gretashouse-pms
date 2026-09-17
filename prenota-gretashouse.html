@@ -305,15 +305,32 @@ function prezzoFinaleNotte(room, listinoRoom, pax, ds, ctx) {
   return prezzo;
 }
 
+// Sconto per soggiorni lunghi — soglie e percentuali decise liberamente da Gian in Impostazioni
+// (array di {notti, sconto}, es. [{notti:5,sconto:5},{notti:10,sconto:12}]). Si applica la soglia
+// più alta tra quelle raggiunte dal numero di notti del soggiorno (non si sommano tra loro).
+function scontoSoggiornoLungoPct(numNotti, soglie) {
+  var migliore = 0;
+  (soglie || []).forEach(function(s){
+    var n = parseInt(s.notti) || 0;
+    var sc = parseFloat(s.sconto) || 0;
+    if (numNotti >= n && sc > migliore) migliore = sc;
+  });
+  return migliore;
+}
+
 function prezzoTotaleSoggiorno(room, listinoRoom, pax, checkin, checkout, ctx) {
   var tot = 0;
+  var numNotti = 0;
   var cursore = new Date(checkin+'T00:00:00');
   var fine = new Date(checkout+'T00:00:00');
   while (cursore < fine) {
     var ds = cursore.getFullYear()+'-'+String(cursore.getMonth()+1).padStart(2,'0')+'-'+String(cursore.getDate()).padStart(2,'0');
     tot += prezzoFinaleNotte(room, listinoRoom, pax, ds, ctx);
     cursore.setDate(cursore.getDate()+1);
+    numNotti++;
   }
+  var scontoPct = scontoSoggiornoLungoPct(numNotti, ctx.scontiSoggiornoLungo);
+  if (scontoPct > 0) tot = Math.round(tot * (1 - scontoPct/100) * 100) / 100;
   return tot;
 }
 
@@ -345,6 +362,7 @@ async function cercaDisponibilita() {
     var risRC = await sb.from('app_blobs').select('data').eq('key', 'revenueConfig').maybeSingle();
     var risLA = await sb.from('app_blobs').select('data').eq('key', 'listinoAggiustamenti').maybeSingle();
     var risRT = await sb.from('app_blobs').select('data').eq('key', 'regoleTipo').maybeSingle();
+    var risSet = await sb.from('app_blobs').select('data').eq('key', 'settings').maybeSingle();
     if (risR.error) throw risR.error;
     if (risB.error) throw risB.error;
     if (risL.error) throw risL.error;
@@ -354,7 +372,8 @@ async function cercaDisponibilita() {
       rooms: rooms,
       bookings: bookings,
       revenueConfig: (risRC.data && risRC.data.data) || { soglie: [], eventi: [] },
-      listinoAggiustamenti: (risLA.data && risLA.data.data) || []
+      listinoAggiustamenti: (risLA.data && risLA.data.data) || [],
+      scontiSoggiornoLungo: (risSet.data && risSet.data.data && risSet.data.data.scontiSoggiornoLungo) || []
     };
 
     var occupatePerCamera = {};
@@ -389,9 +408,11 @@ async function cercaDisponibilita() {
       var listinoRoom = (listino || []).find(function(l){ return l.room_id === r.id; });
       var totale = prezzoTotaleSoggiorno(r, listinoRoom, pax, checkin, checkout, ctx);
       var perNotte = totale / n;
+      var scontoAttivo = scontoSoggiornoLungoPct(n, ctx.scontiSoggiornoLungo);
       return '<div class="roomcard">' +
         '<div class="rn">' + r.name + ' per ' + pax + ' person' + (pax===1?'a':'e') + '</div>' +
         '<div class="rt">' + (r.type||'') + '</div>' +
+        (scontoAttivo>0 ? '<div style="display:inline-block;background:#e8f5e9;color:#2e7d32;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;margin-bottom:4px">🎉 Sconto soggiorno lungo -' + scontoAttivo + '% già applicato</div>' : '') +
         '<div class="price-row">' +
           '<div class="price">EUR ' + totale.toFixed(2) + '<br><small>' + n + ' nott' + (n===1?'e':'i') + ' - EUR ' + perNotte.toFixed(2) + '/notte</small></div>' +
           '<button onclick="apriPrenotazione(\'' + r.id + '\', \'' + r.name.replace(/'/g,"\\'") + '\', ' + totale.toFixed(2) + ')">Prenota</button>' +
