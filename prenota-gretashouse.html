@@ -40,11 +40,10 @@
   .field label { display:block; font-size:11.5px; font-weight:700; color:#6b5b58; margin-bottom:4px; text-transform:uppercase; letter-spacing:.3px; }
   .field input, .field select { width:100%; padding:10px 11px; border:1px solid #ddd0cd; border-radius:8px; font-size:14px; background:#fff; }
 
-  .room-preview { margin-top:14px; }
-  .rp-photos { display:flex; gap:8px; }
-  .rp-photos.rp-single { max-width:150px; }
+  .rp-photos { display:flex; gap:8px; margin-top:14px; }
+  .rp-photos.rp-single { max-width:180px; }
   .rp-item { flex:1; text-align:center; }
-  .rp-item img { width:100%; height:100px; object-fit:cover; border-radius:10px; display:block; }
+  .rp-item img { width:100%; height:110px; object-fit:cover; border-radius:10px; display:block; }
   .rp-label { font-size:10.5px; color:#8a7a77; margin-top:4px; line-height:1.3; }
   .btn { display:block; width:100%; padding:14px; border-radius:10px; border:none; font-size:15px; font-weight:700; cursor:pointer; margin-top:14px; }
   .btn-primary { background:var(--accent); color:#fff; }
@@ -96,7 +95,6 @@
       <div class="field"><label>Adulti</label><select id="q-adults"></select></div>
       <div class="field"><label>Bambini</label><select id="q-children"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
     </div>
-    <div class="room-preview" id="room-preview"></div>
     <button class="btn btn-primary" id="btn-cerca" onclick="cercaDisponibilita()">Cerca disponibilita</button>
   </div>
 
@@ -118,31 +116,19 @@ var sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 })();
 
 // ============================================================
-// ANTEPRIMA CAMERA IN BASE AL NUMERO DI OSPITI
+// ANTEPRIMA CAMERA IN BASE AL NUMERO DI OSPITI (mostrata nella scheda risultato)
 // ============================================================
 var IMG_MATRIMONIALE = 'https://gretashouse.it/images/camera-matrimoniale.jpg';
 var IMG_CASTELLO = 'https://gretashouse.it/images/cameretta-letti.jpg';
 
-function updateRoomPreview() {
-  var el = document.getElementById('room-preview');
-  if (!el) return;
-  var adults = parseInt(document.getElementById('q-adults').value) || 1;
-  var children = parseInt(document.getElementById('q-children').value) || 0;
-  var pax = adults + children;
-
+function roomPreviewHtml(pax) {
   var matrimoniale = '<div class="rp-item"><img src="' + IMG_MATRIMONIALE + '" alt="Camera matrimoniale" loading="lazy"><div class="rp-label">Camera matrimoniale</div></div>';
   var castello = '<div class="rp-item"><img src="' + IMG_CASTELLO + '" alt="Cameretta con letti a castello" loading="lazy"><div class="rp-label">Cameretta con letti a castello</div></div>';
-
   if (pax >= 3) {
-    el.innerHTML = '<div class="rp-photos">' + matrimoniale + castello + '</div>';
-  } else {
-    el.innerHTML = '<div class="rp-photos rp-single">' + matrimoniale + '</div>';
+    return '<div class="rp-photos">' + matrimoniale + castello + '</div>';
   }
+  return '<div class="rp-photos rp-single">' + matrimoniale + '</div>';
 }
-
-document.getElementById('q-adults').addEventListener('change', updateRoomPreview);
-document.getElementById('q-children').addEventListener('change', updateRoomPreview);
-updateRoomPreview();
 
 // ============================================================
 // CALENDARIO DISPONIBILITA (pallini verdi/rossi in base alle prenotazioni reali)
@@ -437,6 +423,7 @@ async function cercaDisponibilita() {
             '<button onclick="apriPrenotazione(\'' + r.id + '\', \'' + r.name.replace(/'/g,"\\'") + '\', ' + totale.toFixed(2) + ')">Prenota</button>' +
           '</div>' +
         '</div>' +
+        roomPreviewHtml(pax) +
       '</div>';
     }).join('');
   } catch (err) {
