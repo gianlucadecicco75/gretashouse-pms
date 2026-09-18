@@ -66,16 +66,11 @@
   .msg { text-align:center; padding:40px 20px; color:#8a7a77; font-size:14px; }
 
   .gallery-wrap { position:relative; }
-  .gallery-arrow { position:absolute; top:50%; transform:translateY(-50%); width:38px; height:38px; border-radius:50%; border:none; background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.18); font-size:20px; line-height:1; color:var(--accent); cursor:pointer; z-index:2; display:flex; align-items:center; justify-content:center; }
-  .gallery-arrow.left { left:-6px; }
-  .gallery-arrow.right { right:-6px; }
-  .gallery-arrow:hover { background:#f4f0ee; }
-  @media(max-width:520px){ .gallery-arrow{ width:32px; height:32px; font-size:17px; } }
 
-  .gallery { display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
-  .gallery::-webkit-scrollbar { height:6px; }
-  .gallery::-webkit-scrollbar-thumb { background:#ddd0cd; border-radius:6px; }
-  .gallery img { flex:0 0 auto; width:min(78vw,320px); height:220px; object-fit:cover; border-radius:12px; scroll-snap-align:start; }
+  .gallery { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+  .gallery img { width:100%; height:180px; object-fit:cover; border-radius:12px; }
+  @media(max-width:700px){ .gallery { grid-template-columns:repeat(2, 1fr); } }
+  @media(max-width:420px){ .gallery { grid-template-columns:1fr; } }
 
   footer { background:var(--accent); color:#fff; padding:34px 20px 30px; text-align:center; }
   footer .contact-row { font-size:13.5px; margin:6px 0; opacity:.95; }
@@ -137,20 +132,10 @@
   <div class="wrap wide"><h2 id="welcome-title"></h2><p id="welcome-text"></p></div>
 </div>
 
-<div class="section alt" id="about-section" style="display:none">
-  <div class="wrap wide"><h2>Chi siamo</h2><p id="about-text"></p></div>
-</div>
-
-<div class="section" id="location-section" style="display:none">
-  <div class="wrap wide"><h2>La zona</h2><p id="location-text"></p></div>
-</div>
-
 <div class="section alt" id="gallery-section" style="display:none">
   <div class="wrap wide"><h2>Galleria</h2>
     <div class="gallery-wrap">
-      <button class="gallery-arrow left" onclick="scrollGallery(-1)" aria-label="Foto precedente">‹</button>
       <div class="gallery" id="gallery-grid"></div>
-      <button class="gallery-arrow right" onclick="scrollGallery(1)" aria-label="Foto successiva">›</button>
     </div>
   </div>
 </div>
@@ -159,7 +144,6 @@
   <div id="footer-name" style="font-family:Georgia,serif;font-style:italic;font-size:19px;margin-bottom:10px">Greta's House</div>
   <div id="footer-contacts"></div>
   <a id="footer-wa" class="wa-btn" style="display:none" target="_blank">💬 Scrivici su WhatsApp</a>
-  <div id="footer-map"></div>
   <div class="fine">© Greta's House — tutti i diritti riservati</div>
 </footer>
 
@@ -216,14 +200,8 @@ async function caricaContenutiSito() {
       document.getElementById('welcome-text').textContent = c.welcomeText;
       document.getElementById('welcome-section').style.display = '';
     }
-    if (c.aboutText) {
-      document.getElementById('about-text').textContent = c.aboutText;
-      document.getElementById('about-section').style.display = '';
-    }
-    if (c.locationText) {
-      document.getElementById('location-text').textContent = c.locationText;
-      document.getElementById('location-section').style.display = '';
-    }
+    // "Chi siamo" e "La zona" ora vivono sul sito principale (chi-siamo.html e index.html),
+    // quindi qui non vengono più mostrati per non ripetere le stesse informazioni.
     if (c.galleryImages && c.galleryImages.length) {
       document.getElementById('gallery-grid').innerHTML = c.galleryImages.map(function(url){
         return '<img src="' + url + '" loading="lazy">';
@@ -244,9 +222,7 @@ async function caricaContenutiSito() {
       wa.href = 'https://wa.me/' + c.whatsapp.replace(/[^0-9]/g,'');
       wa.style.display = 'inline-block';
     }
-    if (c.mapsEmbedUrl) {
-      document.getElementById('footer-map').innerHTML = '<iframe src="' + c.mapsEmbedUrl + '" loading="lazy" allowfullscreen></iframe>';
-    }
+    // La mappa ora è sulla home page del sito principale.
   } catch (err) {
     console.error('Contenuti del sito non caricati (la ricerca disponibilita funziona comunque):', err);
   }
