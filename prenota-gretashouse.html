@@ -40,11 +40,16 @@
   .field label { display:block; font-size:11.5px; font-weight:700; color:#6b5b58; margin-bottom:4px; text-transform:uppercase; letter-spacing:.3px; }
   .field input, .field select { width:100%; padding:10px 11px; border:1px solid #ddd0cd; border-radius:8px; font-size:14px; background:#fff; }
 
-  .rp-photos { display:flex; gap:8px; margin-top:14px; }
-  .rp-photos.rp-single { max-width:180px; }
-  .rp-item { flex:1; text-align:center; }
-  .rp-item img { width:100%; height:110px; object-fit:cover; border-radius:10px; display:block; }
-  .rp-label { font-size:10.5px; color:#8a7a77; margin-top:4px; line-height:1.3; }
+  .preview-panel { padding:6px 4px; }
+  .preview-panel .pp-title { font-size:15px; font-weight:700; color:var(--accent); margin-bottom:14px; }
+  .rp-photos { display:flex; gap:16px; flex-wrap:wrap; }
+  .rp-photos.rp-single { max-width:420px; }
+  .rp-item { flex:1 1 220px; text-align:center; }
+  .rp-item img { width:100%; height:260px; object-fit:cover; border-radius:14px; display:block; box-shadow:0 4px 14px rgba(0,0,0,.08); }
+  .rp-label { font-size:13.5px; font-weight:600; color:#6b5b58; margin-top:10px; }
+  @media (max-width:680px) {
+    .rp-item img { height:200px; }
+  }
   .btn { display:block; width:100%; padding:14px; border-radius:10px; border:none; font-size:15px; font-weight:700; cursor:pointer; margin-top:14px; }
   .btn-primary { background:var(--accent); color:#fff; }
   .btn-primary:disabled { opacity:.5; }
@@ -116,7 +121,7 @@ var sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 })();
 
 // ============================================================
-// ANTEPRIMA CAMERA IN BASE AL NUMERO DI OSPITI (mostrata nella scheda risultato)
+// ANTEPRIMA CAMERA IN BASE AL NUMERO DI OSPITI (mostrata nello spazio accanto al calendario)
 // ============================================================
 var IMG_MATRIMONIALE = 'https://gretashouse.it/images/camera-matrimoniale.jpg';
 var IMG_CASTELLO = 'https://gretashouse.it/images/cameretta-letti.jpg';
@@ -129,6 +134,22 @@ function roomPreviewHtml(pax) {
   }
   return '<div class="rp-photos rp-single">' + matrimoniale + '</div>';
 }
+
+function renderPreview() {
+  var adults = parseInt(document.getElementById('q-adults').value) || 1;
+  var children = parseInt(document.getElementById('q-children').value) || 0;
+  var pax = adults + children;
+  var results = document.getElementById('results');
+  if (!results) return;
+  results.innerHTML = '<div class="preview-panel">' +
+    '<div class="pp-title">La sistemazione per ' + pax + ' person' + (pax===1?'a':'e') + '</div>' +
+    roomPreviewHtml(pax) +
+  '</div>';
+}
+
+document.getElementById('q-adults').addEventListener('change', renderPreview);
+document.getElementById('q-children').addEventListener('change', renderPreview);
+renderPreview();
 
 // ============================================================
 // CALENDARIO DISPONIBILITA (pallini verdi/rossi in base alle prenotazioni reali)
@@ -423,7 +444,6 @@ async function cercaDisponibilita() {
             '<button onclick="apriPrenotazione(\'' + r.id + '\', \'' + r.name.replace(/'/g,"\\'") + '\', ' + totale.toFixed(2) + ')">Prenota</button>' +
           '</div>' +
         '</div>' +
-        roomPreviewHtml(pax) +
       '</div>';
     }).join('');
   } catch (err) {
