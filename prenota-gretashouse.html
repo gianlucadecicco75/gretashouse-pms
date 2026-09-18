@@ -414,20 +414,114 @@ async function cercaDisponibilita() {
 }
 
 function inviaRichiesta(checkin, checkout, adults, children, roomName) {
-  var subject = 'Richiesta disponibilità - Greta\'s House';
-  var righe = [
-    'Buongiorno,',
-    '',
-    'Vorrei richiedere la disponibilità per il seguente periodo:',
-    '',
-    'Check-in: ' + checkin,
-    'Check-out: ' + checkout,
-    'Ospiti: ' + adults + ' adult' + (adults === 1 ? 'o' : 'i') + (children > 0 ? ', ' + children + ' bambin' + (children === 1 ? 'o' : 'i') : '')
-  ];
-  if (roomName) righe.push('Unità: ' + roomName);
-  righe.push('', 'Grazie, resto in attesa di un vostro riscontro.');
-  var body = righe.join('\n');
-  window.location.href = 'mailto:gianlucadec@libero.it?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  var div = document.createElement('div');
+  div.id = 'req-overlay';
+  div.className = 'overlay';
+  div.innerHTML =
+    '<div class="modalbox">' +
+      '<button class="close" onclick="document.getElementById(\'req-overlay\').remove()">X</button>' +
+      '<h2>Richiedi disponibilità</h2>' +
+      '<div class="rowinfo"><span>Check-in</span><span>' + fmtIT(checkin) + '</span></div>' +
+      '<div class="rowinfo"><span>Check-out</span><span>' + fmtIT(checkout) + '</span></div>' +
+      (roomName ? '<div class="rowinfo"><span>Unita</span><span><b>' + roomName + '</b></span></div>' : '') +
+      '<div class="field"><label>Nome *</label><input type="text" id="r-nome" required></div>' +
+      '<div class="field"><label>Cognome *</label><input type="text" id="r-cognome" required></div>' +
+      '<div class="field"><label>Telefono *</label><input type="text" id="r-telefono" required></div>' +
+      '<div class="field"><label>Email *</label><input type="email" id="r-email" required></div>' +
+      '<div class="field"><label>Note (opzionale)</label><input type="text" id="r-note"></div>' +
+      '<button class="btn btn-primary" id="btn-invia-richiesta" onclick="confermaRichiesta(\'' + checkin + '\', \'' + checkout + '\', ' + adults + ', ' + children + ', \'' + (roomName||'').replace(/'/g,"\\'") + '\')">Invia richiesta</button>' +
+      '<div style="font-size:11px;color:#9a8b88;margin-top:10px">Ti risponderemo al più presto per confermare la disponibilità.</div>' +
+    '</div>';
+  document.body.appendChild(div);
+}
+
+async function confermaRichiesta(checkin, checkout, adults, children, roomName) {
+  var nome = (document.getElementById('r-nome')||{value:''}).value.trim();
+  var cognome = (document.getElementById('r-cognome')||{value:''}).value.trim();
+  var telefono = (document.getElementById('r-telefono')||{value:''}).value.trim();
+  var email = (document.getElementById('r-email')||{value:''}).value.trim();
+  var note = (document.getElementById('r-note')||{value:''}).value.trim();
+  if (!nome || !cognome || !telefono || !email) { alert('Compila tutti i campi: nome, cognome, telefono ed email sono obbligatori.'); return; }
+
+  var btn = document.getElementById('btn-invia-richiesta');
+  btn.disabled = true;
+  btn.textContent = 'Invio in corso...';
+
+  var nomeCompleto = nome + ' ' + cognome;
+  var descrizioneOspiti = adults + ' adult' + (adults === 1 ? 'o' : 'i') + (children > 0 ? ', ' + children + ' bambin' + (children === 1 ? 'o' : 'i') : '');
+
+  try {
+    // Salva la richiesta anche nel gestionale, tra le richieste di preventivo (se non riesce, l'email viene comunque inviata)
+    try {
+      await sb.from('richieste_preventivo').insert({
+        id: 'rq_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8),
+        guest_name: nomeCompleto,
+        email: email,
+        phone: telefono,
+        checkin: checkin,
+        checkout: checkout,
+        adults: adults,
+        children: children,
+        room_name: roomName || '',
+        status: 'nuova',
+        source: 'Sito web',
+        notes: note,
+        created_at: new Date().toISOString()
+      });
+    } catch (eDb) { console.error('Richiesta non salvata nel gestionale (verra comunque inviata via email):', eDb); }
+
+    // Invia email reale (stesso sistema usato per le conferme di prenotazione)
+    var risBlob = await sb.from('app_blobs').select('data').eq('key', 'settings').maybeSingle();
+    var s = (risBlob.data && risBlob.data.data) || {};
+    var inviata = false;
+    if (s.emailInvioPromemoria && s.passwordInvioPromemoria) {
+      var functionUrl = SUPABASE_URL + '/functions/v1/invio-ricevuta';
+      if (s.email) {
+        var risNotif = await fetch(functionUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+          body: JSON.stringify({
+            smtpEmail: s.emailInvioPromemoria, smtpPassword: s.passwordInvioPromemoria,
+            to: s.email, toName: 'Greta\'s House',
+            subject: 'Nuova richiesta di disponibilità dal sito - ' + nomeCompleto,
+            message: 'Nuova richiesta di disponibilità ricevuta dal sito web:\n\nNome: ' + nomeCompleto + '\nTelefono: ' + telefono + '\nEmail: ' + email + '\n\nCheck-in: ' + fmtIT(checkin) + '\nCheck-out: ' + fmtIT(checkout) + '\nOspiti: ' + descrizioneOspiti + (roomName ? '\nUnita: ' + roomName : '') + '\n\nVai su DeskFlow - Richieste di preventivo per gestirla.'
+          })
+        });
+        inviata = risNotif.ok;
+      }
+      // Conferma di ricezione al cliente
+      fetch(functionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify({
+          smtpEmail: s.emailInvioPromemoria, smtpPassword: s.passwordInvioPromemoria,
+          to: email, toName: nomeCompleto,
+          subject: 'Richiesta ricevuta - Greta\'s House',
+          message: 'Gentile ' + nomeCompleto + ',\n\nAbbiamo ricevuto la tua richiesta di disponibilità:\n\nCheck-in: ' + fmtIT(checkin) + '\nCheck-out: ' + fmtIT(checkout) + '\nOspiti: ' + descrizioneOspiti + (roomName ? '\nUnita: ' + roomName : '') + '\n\nTi risponderemo al più presto per confermare.\n\nCordiali saluti,\nGreta\'s House'
+        })
+      }).catch(function(){});
+    }
+
+    if (!inviata) {
+      // Fallback: se le credenziali email non sono configurate in Impostazioni, apri comunque un mailto come rete di sicurezza
+      var subject = 'Richiesta disponibilità - Greta\'s House (' + nomeCompleto + ')';
+      var body = 'Nome: ' + nomeCompleto + '\nTelefono: ' + telefono + '\nEmail: ' + email + '\n\nCheck-in: ' + fmtIT(checkin) + '\nCheck-out: ' + fmtIT(checkout) + '\nOspiti: ' + descrizioneOspiti + (roomName ? '\nUnita: ' + roomName : '');
+      window.location.href = 'mailto:gianlucadec@libero.it?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    }
+
+    document.getElementById('req-overlay').innerHTML =
+      '<div class="modalbox"><div class="ok-box">' +
+        '<div class="tick">OK</div>' +
+        '<h2>Richiesta inviata!</h2>' +
+        '<p style="color:#8a7a77;font-size:13.5px">Ti risponderemo al più presto per confermare la disponibilità.</p>' +
+        '<button class="btn btn-primary" onclick="document.getElementById(\'req-overlay\').remove()">Chiudi</button>' +
+      '</div></div>';
+  } catch (err) {
+    console.error(err);
+    btn.disabled = false;
+    btn.textContent = 'Invia richiesta';
+    alert('Errore durante l\'invio della richiesta: ' + (err.message || 'sconosciuto') + '. Riprova, oppure contattaci direttamente.');
+  }
 }
 
 function apriPrenotazione(roomId, roomName, totale) {
