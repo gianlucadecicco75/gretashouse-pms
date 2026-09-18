@@ -49,11 +49,14 @@
   .roomcard { background:#fff; border:1px solid #eee0dd; border-radius:14px; padding:18px 20px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
   .roomcard .rn { font-size:17px; font-weight:800; color:#1a1a1a; }
   .roomcard .rt { font-size:12.5px; color:#8a7a77; margin-top:1px; }
-  .roomcard .price-row { display:flex; justify-content:space-between; align-items:flex-end; margin-top:12px; }
+  .roomcard .price-row { display:flex; justify-content:space-between; align-items:flex-end; margin-top:12px; flex-wrap:wrap; gap:10px; }
   .roomcard .price { font-size:22px; font-weight:800; color:var(--primary); }
   .roomcard .price small { font-size:12px; font-weight:500; color:#8a7a77; }
+  .roomcard .btn-row { display:flex; gap:8px; }
   .roomcard button { padding:11px 20px; border-radius:9px; border:none; background:var(--accent); color:#fff; font-weight:700; font-size:14px; cursor:pointer; }
+  .roomcard button.btn-outline { background:#fff; color:var(--accent); border:1px solid #ddd0cd; }
   .msg { text-align:center; padding:40px 20px; color:#8a7a77; font-size:14px; }
+  .msg .btn { max-width:280px; margin:14px auto 0; }
 
   .overlay { position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px; overflow-y:auto; }
   .modalbox { background:#fff; border-radius:16px; padding:24px; width:100%; max-width:420px; margin:auto; position:relative; color:#1a1a1a; }
@@ -113,7 +116,7 @@ var MESI_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio',
 var oggiDate = new Date(); oggiDate.setHours(0,0,0,0);
 var meseVisualizzato = new Date(oggiDate.getFullYear(), oggiDate.getMonth(), 1);
 var calSelCheckin = null, calSelCheckout = null;
-var calRooms = null, calBookings = null;
+var calRooms = null, calBookings = null, calBlocks = null;
 
 function fmtISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function fmtIT(iso){ var p = iso.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
@@ -122,20 +125,26 @@ async function caricaDatiCalendario() {
   try {
     var risR = await sb.from('rooms').select('*').eq('status', 'disponibile');
     var risB = await sb.from('bookings').select('room_id, checkin, checkout, status').neq('status', 'cancellata');
+    var risK = await sb.from('room_blocks').select('room_id, block_date');
     calRooms = risR.data || [];
     calBookings = risB.data || [];
+    calBlocks = risK.data || [];
   } catch (e) {
     console.error('Calendario: dati non caricati', e);
-    calRooms = []; calBookings = [];
+    calRooms = []; calBookings = []; calBlocks = [];
   }
   renderCalendario();
 }
 
-// Un giorno è "occupato" se TUTTE le unità disponibili risultano prenotate quella notte
+// Un giorno è "occupato" se TUTTE le unità disponibili risultano prenotate o bloccate quella notte
 function calGiornoOccupato(iso) {
   if (!calRooms || !calRooms.length) return false;
   var libera = calRooms.some(function(r){
-    return !calBookings.some(function(b){ return b.room_id === r.id && b.checkin <= iso && b.checkout > iso; });
+    var prenotata = calBookings.some(function(b){ return b.room_id === r.id && b.checkin <= iso && b.checkout > iso; });
+    if (prenotata) return false;
+    var bloccata = (calBlocks || []).some(function(k){ return k.room_id === r.id && k.block_date === iso; });
+    if (bloccata) return false;
+    return true;
   });
   return !libera;
 }
@@ -324,6 +333,7 @@ async function cercaDisponibilita() {
   try {
     var risR = await sb.from('rooms').select('*').eq('status', 'disponibile');
     var risB = await sb.from('bookings').select('room_id, checkin, checkout, status').neq('status', 'cancellata');
+    var risK = await sb.from('room_blocks').select('room_id, block_date');
     var risL = await sb.from('listino').select('*').eq('tariffa_id', 'standard');
     var risRC = await sb.from('app_blobs').select('data').eq('key', 'revenueConfig').maybeSingle();
     var risLA = await sb.from('app_blobs').select('data').eq('key', 'listinoAggiustamenti').maybeSingle();
@@ -333,6 +343,7 @@ async function cercaDisponibilita() {
     if (risB.error) throw risB.error;
     if (risL.error) throw risL.error;
     var rooms = risR.data, bookings = risB.data, listino = risL.data;
+    var blocks = risK.data || [];
     var minNottiPerTipo = (risRT.data && risRT.data.data && risRT.data.data.minNotti) || {};
     var ctx = {
       rooms: rooms,
@@ -345,6 +356,9 @@ async function cercaDisponibilita() {
     var occupatePerCamera = {};
     (bookings || []).forEach(function(b){
       if (b.checkin < checkout && b.checkout > checkin) occupatePerCamera[b.room_id] = true;
+    });
+    (blocks || []).forEach(function(k){
+      if (k.block_date >= checkin && k.block_date < checkout) occupatePerCamera[k.room_id] = true;
     });
 
     // Il soggiorno minimo si applica in base al giorno di arrivo (stesso criterio usato nel
@@ -363,8 +377,10 @@ async function cercaDisponibilita() {
       var minRichiestoMax = Math.max.apply(null, (rooms||[]).map(function(r){ return minNottiRichiesto(r.type); }).concat([1]));
       var messaggioMin = (minRichiestoMax > n)
         ? ('Per le date scelte è richiesto un soggiorno minimo di ' + minRichiestoMax + ' nott' + (minRichiestoMax===1?'e':'i') + '. Prova ad allungare il soggiorno.')
-        : 'Nessuna unita disponibile per queste date/ospiti. Prova con altre date, oppure scrivici direttamente.';
-      results.innerHTML = '<div class="msg">' + messaggioMin + '</div>';
+        : 'Nessuna unita disponibile per queste date/ospiti. Prova con altre date, oppure invia una richiesta:';
+      results.innerHTML = '<div class="msg">' + messaggioMin +
+        '<button class="btn btn-primary" onclick="inviaRichiesta(\'' + checkin + '\', \'' + checkout + '\', ' + adults + ', ' + children + ', \'\')">Invia richiesta di disponibilità</button>' +
+      '</div>';
       return;
     }
 
@@ -381,7 +397,10 @@ async function cercaDisponibilita() {
         (scontoAttivo>0 ? '<div style="display:inline-block;background:#e8f5e9;color:#2e7d32;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;margin-bottom:4px">🎉 Sconto soggiorno lungo -' + scontoAttivo + '% già applicato</div>' : '') +
         '<div class="price-row">' +
           '<div class="price">EUR ' + totale.toFixed(2) + '<br><small>' + n + ' nott' + (n===1?'e':'i') + ' - EUR ' + perNotte.toFixed(2) + '/notte</small></div>' +
-          '<button onclick="apriPrenotazione(\'' + r.id + '\', \'' + r.name.replace(/'/g,"\\'") + '\', ' + totale.toFixed(2) + ')">Prenota</button>' +
+          '<div class="btn-row">' +
+            '<button class="btn-outline" onclick="inviaRichiesta(\'' + checkin + '\', \'' + checkout + '\', ' + adults + ', ' + children + ', \'' + r.name.replace(/'/g,"\\'") + '\')">Invia richiesta</button>' +
+            '<button onclick="apriPrenotazione(\'' + r.id + '\', \'' + r.name.replace(/'/g,"\\'") + '\', ' + totale.toFixed(2) + ')">Prenota</button>' +
+          '</div>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -392,6 +411,23 @@ async function cercaDisponibilita() {
     btn.disabled = false;
     btn.textContent = 'Cerca disponibilita';
   }
+}
+
+function inviaRichiesta(checkin, checkout, adults, children, roomName) {
+  var subject = 'Richiesta disponibilità - Greta\'s House';
+  var righe = [
+    'Buongiorno,',
+    '',
+    'Vorrei richiedere la disponibilità per il seguente periodo:',
+    '',
+    'Check-in: ' + checkin,
+    'Check-out: ' + checkout,
+    'Ospiti: ' + adults + ' adult' + (adults === 1 ? 'o' : 'i') + (children > 0 ? ', ' + children + ' bambin' + (children === 1 ? 'o' : 'i') : '')
+  ];
+  if (roomName) righe.push('Unità: ' + roomName);
+  righe.push('', 'Grazie, resto in attesa di un vostro riscontro.');
+  var body = righe.join('\n');
+  window.location.href = 'mailto:gianlucadec@libero.it?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
 }
 
 function apriPrenotazione(roomId, roomName, totale) {
