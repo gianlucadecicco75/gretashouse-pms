@@ -117,7 +117,7 @@ var sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ============================================================
 (function(){
   var sel = document.getElementById('q-adults');
-  for (var i=1;i<=8;i++) sel.innerHTML += '<option value="'+i+'"'+(i===2?' selected':'')+'>'+i+'</option>';
+  for (var i=1;i<=5;i++) sel.innerHTML += '<option value="'+i+'"'+(i===2?' selected':'')+'>'+i+'</option>';
 })();
 
 // ============================================================
@@ -445,7 +445,7 @@ async function cercaDisponibilita() {
           '</div>' +
         '</div>' +
       '</div>';
-    }).join('');
+    }).join('') + '<div class="preview-panel"><div class="pp-title">La sistemazione per ' + pax + ' person' + (pax===1?'a':'e') + '</div>' + roomPreviewHtml(pax) + '</div>';
   } catch (err) {
     console.error(err);
     results.innerHTML = '<div class="msg">Errore nel controllare la disponibilita - riprova tra poco.</div>';
