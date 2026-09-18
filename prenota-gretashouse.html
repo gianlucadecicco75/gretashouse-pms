@@ -11,15 +11,7 @@
   body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#faf6f4; color:#1a1a1a; }
   a { color:inherit; }
 
-  .hero { background:var(--primary); color:#fff; padding:46px 20px 38px; text-align:center; position:relative; }
-  .hero.hero-dark-text { color:#1a1a1a; }
-  .hero.hero-dark-text .eyebrow { opacity:.75; }
-  .hero.hero-dark-text .sub { opacity:.85; }
-  .hero-inner { position:relative; z-index:1; }
-  .hero-logo { width:130px; height:130px; object-fit:cover; border-radius:18px; margin:0 auto 16px; display:none; box-shadow:0 4px 18px rgba(0,0,0,.22); }
-  .hero .eyebrow { font-size:12.5px; letter-spacing:1.5px; text-transform:uppercase; opacity:.9; margin-bottom:8px; }
-  .hero h1 { margin:0; font-size:40px; font-weight:400; font-family:Georgia,'Times New Roman',serif; font-style:italic; }
-  .hero .sub { font-size:14.5px; opacity:.94; margin-top:10px; max-width:480px; margin-left:auto; margin-right:auto; line-height:1.5; }
+  .hero { display:none; }
 
   .wrap { max-width:720px; margin:0 auto; padding:0 16px; }
   .wrap.wide { max-width:1100px; padding:0 24px; }
@@ -28,7 +20,33 @@
   .section p { font-size:14.5px; line-height:1.7; color:#4a4a4a; white-space:pre-line; }
   .section.alt { background:#fff; }
 
-  .searchcard { background:#fff; border-radius:16px; padding:20px; margin-top:-30px; box-shadow:0 6px 22px rgba(0,0,0,.1); position:relative; z-index:2; }
+  .searchcard { background:#fff; border-radius:16px; padding:20px; margin-top:22px; box-shadow:0 6px 22px rgba(0,0,0,.1); position:relative; z-index:2; }
+
+  /* Calendario disponibilità */
+  .cal-wrap { margin-bottom:18px; }
+  .cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .cal-month { font-weight:700; font-size:15px; color:var(--accent); text-transform:capitalize; }
+  .cal-nav { border:none; background:#f3ecea; width:32px; height:32px; border-radius:8px; font-size:17px; cursor:pointer; color:var(--accent); }
+  .cal-nav:disabled { opacity:.35; cursor:default; }
+  .cal-weekdays { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:11px; color:#9a8b88; text-transform:uppercase; margin-bottom:4px; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-day { position:relative; text-align:center; padding:8px 0 10px; border-radius:8px; font-size:13.5px; cursor:pointer; border:1px solid transparent; color:#1a1a1a; }
+  .cal-day .dot { display:block; width:5px; height:5px; border-radius:50%; margin:3px auto 0; background:#cfc4c1; }
+  .cal-day.available .dot { background:#2e7d32; }
+  .cal-day.unavailable { color:#c7bcb9; cursor:default; }
+  .cal-day.unavailable .dot { background:#c0392b; }
+  .cal-day.empty { visibility:hidden; cursor:default; }
+  .cal-day.past { color:#d8cfcd; cursor:default; }
+  .cal-day.past .dot { background:transparent; }
+  .cal-day:not(.unavailable):not(.past):not(.empty):not(.selected):hover { background:#f3ecea; }
+  .cal-day.selected { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .cal-day.selected .dot { background:#fff; }
+  .cal-day.in-range { background:#e8f0fb; }
+  .cal-legend { display:flex; gap:16px; align-items:center; font-size:11.5px; color:#8a7a77; margin-top:10px; }
+  .cal-legend .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+  .cal-legend .dot.available { background:#2e7d32; }
+  .cal-legend .dot.unavailable { background:#c0392b; }
+  .cal-selection { text-align:center; font-size:13.5px; font-weight:600; color:var(--accent); margin-top:12px; padding-top:12px; border-top:1px solid #f3ecea; }
   .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:10px; }
   .field label { display:block; font-size:11.5px; font-weight:700; color:#6b5b58; margin-bottom:4px; text-transform:uppercase; letter-spacing:.3px; }
@@ -89,10 +107,21 @@
 
 <div class="wrap">
   <div class="searchcard">
-    <div class="row2">
-      <div class="field"><label>Check-in</label><input type="date" id="q-checkin"></div>
-      <div class="field"><label>Check-out</label><input type="date" id="q-checkout"></div>
+    <div class="cal-wrap">
+      <div class="cal-header">
+        <button class="cal-nav" id="cal-prev" onclick="cambiaMese(-1)">‹</button>
+        <div class="cal-month" id="cal-month-label"></div>
+        <button class="cal-nav" id="cal-next" onclick="cambiaMese(1)">›</button>
+      </div>
+      <div class="cal-weekdays"><span>lun</span><span>mar</span><span>mer</span><span>gio</span><span>ven</span><span>sab</span><span>dom</span></div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="cal-legend"><span><span class="dot available"></span>Disponibile</span><span><span class="dot unavailable"></span>Occupato</span></div>
+      <div class="cal-selection" id="cal-selection">Seleziona la data di check-in</div>
     </div>
+
+    <input type="hidden" id="q-checkin">
+    <input type="hidden" id="q-checkout">
+
     <div class="row3">
       <div class="field"><label>Adulti</label><select id="q-adults"></select></div>
       <div class="field"><label>Bambini</label><select id="q-children"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
@@ -232,18 +261,119 @@ caricaContenutiSito();
   for (var i=1;i<=8;i++) sel.innerHTML += '<option value="'+i+'"'+(i===2?' selected':'')+'>'+i+'</option>';
 })();
 
-(function(){
-  var oggi = new Date();
-  var domani = new Date(oggi.getTime()+86400000);
-  function fmt(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-  document.getElementById('q-checkin').value = fmt(oggi);
-  document.getElementById('q-checkout').value = fmt(domani);
-  document.getElementById('q-checkin').min = fmt(oggi);
-  document.getElementById('q-checkout').min = fmt(domani);
-})();
-document.getElementById('q-checkin').addEventListener('change', function(){
-  document.getElementById('q-checkout').min = this.value;
-});
+// ============================================================
+// CALENDARIO DISPONIBILITA (pallini verdi/rossi in base alle prenotazioni reali)
+// ============================================================
+var MESI_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+var oggiDate = new Date(); oggiDate.setHours(0,0,0,0);
+var meseVisualizzato = new Date(oggiDate.getFullYear(), oggiDate.getMonth(), 1);
+var calSelCheckin = null, calSelCheckout = null;
+var calRooms = null, calBookings = null;
+
+function fmtISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtIT(iso){ var p = iso.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+
+async function caricaDatiCalendario() {
+  try {
+    var risR = await sb.from('rooms').select('*').eq('status', 'disponibile');
+    var risB = await sb.from('bookings').select('room_id, checkin, checkout, status').neq('status', 'cancellata');
+    calRooms = risR.data || [];
+    calBookings = risB.data || [];
+  } catch (e) {
+    console.error('Calendario: dati non caricati', e);
+    calRooms = []; calBookings = [];
+  }
+  renderCalendario();
+}
+
+// Un giorno è "occupato" se TUTTE le unità disponibili risultano prenotate quella notte
+function calGiornoOccupato(iso) {
+  if (!calRooms || !calRooms.length) return false;
+  var libera = calRooms.some(function(r){
+    return !calBookings.some(function(b){ return b.room_id === r.id && b.checkin <= iso && b.checkout > iso; });
+  });
+  return !libera;
+}
+
+function renderCalendario() {
+  var label = document.getElementById('cal-month-label');
+  var grid = document.getElementById('cal-grid');
+  if (!label || !grid) return;
+  label.textContent = MESI_IT[meseVisualizzato.getMonth()] + ' ' + meseVisualizzato.getFullYear();
+
+  var primoLimite = new Date(oggiDate.getFullYear(), oggiDate.getMonth(), 1);
+  document.getElementById('cal-prev').disabled = (meseVisualizzato.getTime() <= primoLimite.getTime());
+
+  var anno = meseVisualizzato.getFullYear(), mese = meseVisualizzato.getMonth();
+  var primoGiorno = new Date(anno, mese, 1);
+  var giorniNelMese = new Date(anno, mese+1, 0).getDate();
+  var offset = (primoGiorno.getDay() + 6) % 7; // lun=0 ... dom=6
+
+  var html = '';
+  for (var i=0; i<offset; i++) html += '<div class="cal-day empty"></div>';
+
+  for (var d=1; d<=giorniNelMese; d++) {
+    var data = new Date(anno, mese, d);
+    var iso = fmtISO(data);
+    var classi = ['cal-day'];
+    var clickAttr = '';
+    if (data.getTime() < oggiDate.getTime()) {
+      classi.push('past');
+    } else if (calGiornoOccupato(iso)) {
+      classi.push('unavailable');
+    } else {
+      classi.push('available');
+      clickAttr = ' onclick="calSelezionaGiorno(\'' + iso + '\')"';
+    }
+    if (iso === calSelCheckin || iso === calSelCheckout) classi.push('selected');
+    else if (calSelCheckin && calSelCheckout && iso > calSelCheckin && iso < calSelCheckout) classi.push('in-range');
+
+    html += '<div class="' + classi.join(' ') + '"' + clickAttr + '>' + d + '<span class="dot"></span></div>';
+  }
+  grid.innerHTML = html;
+
+  var sel = document.getElementById('cal-selection');
+  if (calSelCheckin && calSelCheckout) {
+    sel.textContent = 'Check-in ' + fmtIT(calSelCheckin) + '  →  Check-out ' + fmtIT(calSelCheckout);
+  } else if (calSelCheckin) {
+    sel.textContent = 'Check-in ' + fmtIT(calSelCheckin) + ' — ora seleziona il check-out';
+  } else {
+    sel.textContent = 'Seleziona la data di check-in';
+  }
+}
+
+function calSelezionaGiorno(iso) {
+  if (!calSelCheckin || (calSelCheckin && calSelCheckout)) {
+    calSelCheckin = iso; calSelCheckout = null;
+  } else if (iso <= calSelCheckin) {
+    calSelCheckin = iso; calSelCheckout = null;
+  } else {
+    var cursore = new Date(calSelCheckin+'T00:00:00');
+    var fine = new Date(iso+'T00:00:00');
+    var tutteLibere = true;
+    while (cursore < fine) {
+      var ds = fmtISO(cursore);
+      if (calGiornoOccupato(ds)) { tutteLibere = false; break; }
+      cursore.setDate(cursore.getDate()+1);
+    }
+    if (!tutteLibere) {
+      alert('Alcune notti in questo intervallo non sono libere. Scegli un altro periodo.');
+      calSelCheckin = iso; calSelCheckout = null;
+    } else {
+      calSelCheckout = iso;
+    }
+  }
+  document.getElementById('q-checkin').value = calSelCheckin || '';
+  document.getElementById('q-checkout').value = calSelCheckout || '';
+  renderCalendario();
+}
+
+function cambiaMese(dir) {
+  meseVisualizzato = new Date(meseVisualizzato.getFullYear(), meseVisualizzato.getMonth()+dir, 1);
+  renderCalendario();
+}
+
+caricaDatiCalendario();
 
 function notti(checkin, checkout) {
   var a = new Date(checkin+'T00:00:00'), b = new Date(checkout+'T00:00:00');
