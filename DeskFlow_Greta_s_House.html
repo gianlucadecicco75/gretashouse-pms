@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 10:45</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 13:20</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -747,7 +747,7 @@ function bookingToSupabase(b) {
     fattura:b.fattura||null, garanzia:b.garanzia||null, alloggiati_web_inviato_at:b.alloggiatiWebInviatoAt||null, created_at:b.createdAt||new Date().toISOString(),
     modified_at:b.modifiedAt||null, cancelled_at:b.cancelledAt||null,
     bloccata:!!b.bloccata, comunicazioni:b.comunicazioni||[], tipo_alloggiato_manuale:b.tipoAlloggiatoManuale||null, escludi_conteggi:!!b.escludiConteggi,
-    registro_modifiche:b.registroModifiche||[]
+    registro_modifiche:b.registroModifiche||[], recensione_richiesta:!!b.recensioneRichiesta
   };
 }
 function bookingFromSupabase(b) {
@@ -766,7 +766,7 @@ function bookingFromSupabase(b) {
     fattura:b.fattura||null, garanzia:b.garanzia||null, alloggiatiWebInviatoAt:b.alloggiati_web_inviato_at||null, createdAt:b.created_at||new Date().toISOString(),
     modifiedAt:b.modified_at||'', cancelledAt:b.cancelled_at||'',
     bloccata:!!b.bloccata, comunicazioni:b.comunicazioni||[], tipoAlloggiatoManuale:b.tipo_alloggiato_manuale||'', escludiConteggi:!!b.escludi_conteggi,
-    registroModifiche:b.registro_modifiche||[]
+    registroModifiche:b.registro_modifiche||[], recensioneRichiesta:!!b.recensione_richiesta
   };
 }
 
@@ -30141,6 +30141,17 @@ function renderImpostazioni() {
                 return '<textarea id="s-recensione-msg-'+lang+'" class="rc-lang-pane" data-lang="'+lang+'" rows="5" style="width:100%;'+(i===0?'':'display:none')+'">'+valore.replace(/</g,'&lt;')+'</textarea>';
               }).join('')}
             </div>
+            <div class="form-group full" style="border-top:.5px solid var(--border2);padding-top:12px;margin-top:2px">
+              <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-weight:600">
+                <input type="checkbox" id="s-recensioneAutoAttivo" ${s.recensioneAutoAttivo?'checked':''} style="width:auto">
+                Invia automaticamente la richiesta di recensione dopo il check-out
+              </label>
+              <div class="sub" style="font-size:11.5px;color:var(--text3);margin-top:4px">Richiede una funzione programmata su Supabase (vedi guida separata) — questa casella e il numero di giorni li legge da qui. Manda solo via email (serve l'email dell'ospite salvata in anagrafica) e solo una volta per prenotazione, anche se poi mandi anche una richiesta a mano.</div>
+            </div>
+            <div class="form-group">
+              <label>Giorni dopo il check-out</label>
+              <input type="number" id="s-recensioneAutoGiorni" min="1" max="30" value="${s.recensioneAutoGiorni||2}">
+            </div>
       </div></div></div>
 
       <div class="card" id="imp-sez-3" style="max-width:500px;flex:1 1 460px">
@@ -30807,6 +30818,8 @@ function saveImpostazioni() {
   ['it','en','de','fr'].forEach(function(lang){
     s.recensioneMsgByLang[lang] = document.getElementById('s-recensione-msg-'+lang)?.value || '';
   });
+  s.recensioneAutoAttivo = !!document.getElementById('s-recensioneAutoAttivo')?.checked;
+  s.recensioneAutoGiorni = Math.max(1, Math.min(30, parseInt(document.getElementById('s-recensioneAutoGiorni')?.value) || 2));
   s.currency      = document.getElementById('s-currency').value;
   // s.logo non va toccato qui: resta quello già salvato, si cambia solo con Carica/Rimuovi logo
   s.cityTax          = parseFloat(document.getElementById('s-tax').value)||0;
