@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 10:05</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 10:20</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -26280,9 +26280,16 @@ function _ssResetRange() {
 
 function _ssEsportaExcel() {
   var visite = window._ssUltimeVisite || [];
-  if (!visite.length) { showToast('Nessuna visita da esportare in questo periodo'); return; }
+  var periodo = _ssPeriodo();
+  var tuttePrenotazioni = (DB.get('bookings') || []).filter(function(b){ return !b.escludiConteggi && b.status!=='cancellata'; });
+  var prenotazioniPeriodo = tuttePrenotazioni.filter(function(b){
+    var d = (b.createdAt||'').slice(0,10);
+    return d && d >= periodo.da && d <= periodo.a;
+  });
+  if (!visite.length && !prenotazioniPeriodo.length) { showToast('Nessun dato da esportare in questo periodo'); return; }
   if (!window.XLSX) { showToast('SheetJS non disponibile'); return; }
-  var righe = visite.map(function(v){
+
+  var righeVisite = visite.map(function(v){
     return {
       Data: (v.ts||'').slice(0,10),
       Ora: (v.ts||'').slice(11,19),
@@ -26293,9 +26300,22 @@ function _ssEsportaExcel() {
       Sessione: v.session_id || ''
     };
   });
+
+  var righePortali = prenotazioniPeriodo.map(function(b){
+    return {
+      'Data prenotazione': (b.createdAt||'').slice(0,10),
+      Portale: b.source || 'Diretto',
+      Ospite: b.guestName || '',
+      'Check-in': b.checkin || '',
+      'Check-out': b.checkout || '',
+      Notti: nights(b.checkin, b.checkout),
+      Totale: Number(b.totalPrice||0)
+    };
+  });
+
   var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righe), 'Visite sito');
-  var periodo = _ssPeriodo();
+  if (righeVisite.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righeVisite), 'Visite sito');
+  if (righePortali.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righePortali), 'Prenotazioni per portale');
   XLSX.writeFile(wb, 'statistiche-sito-'+periodo.da+'_'+periodo.a+'.xlsx');
 }
 
@@ -26342,6 +26362,25 @@ function _ssRenderHTML(visite, periodo) {
     perProvenienza[src] = (perProvenienza[src]||0) + 1;
   });
   var provenienzeTop = Object.entries(perProvenienza).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 8);
+
+  // Prenotazioni per portale (Diretto/Booking.com/Airbnb/ecc.) nello stesso periodo selezionato —
+  // qui usiamo le prenotazioni vere già registrate nel PMS (l'unico dato disponibile per le OTA,
+  // dato che nessun portale offre un'API pubblica per click/visualizzazioni: vedi nota in fondo).
+  var tuttePrenotazioni = (DB.get('bookings') || []).filter(function(b){ return !b.escludiConteggi && b.status!=='cancellata'; });
+  var prenotazioniPeriodo = tuttePrenotazioni.filter(function(b){
+    var d = (b.createdAt||'').slice(0,10);
+    return d && d >= periodo.da && d <= periodo.a;
+  });
+  var perFonte = {};
+  prenotazioniPeriodo.forEach(function(b){
+    var f = b.source || 'Diretto';
+    if (!perFonte[f]) perFonte[f] = { n: 0, notti: 0, incasso: 0 };
+    perFonte[f].n++;
+    perFonte[f].notti += nights(b.checkin, b.checkout);
+    perFonte[f].incasso += Number(b.totalPrice||0);
+  });
+  var fontiOrdinate = Object.entries(perFonte).sort(function(a,b){ return b[1].n - a[1].n; });
+  var maxFonteN = Math.max.apply(null, fontiOrdinate.map(function(f){return f[1].n;}).concat([1]));
 
   function barRow(label, val, max, colore) {
     var pct = max > 0 ? Math.round(val/max*100) : 0;
@@ -26449,9 +26488,32 @@ function _ssRenderHTML(visite, periodo) {
       '</div>' +
     '</div>' +
 
+    '<div class="card" style="margin-top:16px">' +
+      '<div class="card-header"><span class="card-title">Prenotazioni per portale (stesso periodo)</span></div>' +
+      '<div class="modal-body">' +
+        (fontiOrdinate.length ?
+          '<div style="display:flex;flex-direction:column;gap:10px">' +
+            fontiOrdinate.map(function(f){
+              var nome = f[0], d = f[1];
+              var pct = maxFonteN > 0 ? Math.round(d.n/maxFonteN*100) : 0;
+              return '<div>' +
+                '<div style="display:flex;align-items:center;gap:10px;margin-bottom:3px">' +
+                  '<div style="width:150px;font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+nome+'">'+iconeFonteHTML(nome)+' '+nome+'</div>' +
+                  '<div style="flex:1;background:var(--surface2);border-radius:5px;height:16px;overflow:hidden">' +
+                    '<div style="width:'+pct+'%;background:#0ea5e9;height:100%"></div>' +
+                  '</div>' +
+                  '<div style="width:110px;text-align:right;font-size:12.5px;font-weight:700">'+d.n+' prenot. · '+fmtCurrency(d.incasso)+'</div>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>'
+        : '<div style="color:var(--text3);font-size:13px">Nessuna prenotazione registrata in questo periodo</div>') +
+      '</div>' +
+    '</div>' +
+
     '<div class="card" style="margin-top:16px;background:var(--surface2)">' +
       '<div class="modal-body" style="font-size:12.5px;color:var(--text3)">' +
-        '💡 Per le visualizzazioni e ricerche della struttura su <strong>Booking.com</strong>, questi dati non sono disponibili qui — Booking.com non offre un collegamento automatico a queste statistiche. Si trovano invece nella sezione <strong>"Analisi" / "Performance"</strong> del tuo account Booking.com Extranet.' +
+        '💡 I <strong>click/visualizzazioni</strong> su Booking.com, Airbnb, Google e gli altri portali non sono disponibili qui — nessuno di questi offre un accesso pubblico a queste statistiche. Si trovano solo direttamente nelle rispettive sezioni "Analisi"/"Performance" di ogni portale. La tabella qui sopra mostra invece le <strong>prenotazioni realmente arrivate</strong> da ciascun canale, l\'unico dato confrontabile che il PMS può calcolare da solo.' +
       '</div>' +
     '</div>'
   );
