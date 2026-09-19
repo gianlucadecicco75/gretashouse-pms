@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 17/09/2026 · 08:11</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 08:48</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -377,6 +377,7 @@ tr:hover td{background:var(--surface2)}
   <div class="nav-item" onclick="navigate('tipologie')" data-page="tipologie">🏷 Tipologie</div>
   <div class="nav-item" onclick="navigate('tassasoggiorno')" data-page="tassasoggiorno">🏛 Tassa di soggiorno</div>
   <div class="nav-item" onclick="navigate('sitoweb')" data-page="sitoweb">🌐 Sito web</div>
+  <div class="nav-item" onclick="navigate('statistichesito')" data-page="statistichesito">📈 Statistiche sito</div>
   <div class="nav-section">Operativo</div>
   <div class="nav-item" onclick="navigate('biancheria')" data-page="biancheria">🧺 Biancheria</div>
   <div class="nav-item" onclick="navigate('puliziamobile')" data-page="puliziamobile">🧹📱 Pulizie mobile</div>
@@ -453,6 +454,7 @@ tr:hover td{background:var(--surface2)}
   <div id="page-preventivi" class="page"></div>
   <div id="page-addebitiextra" class="page"></div>
   <div id="page-sitoweb" class="page"></div>
+  <div id="page-statistichesito" class="page"></div>
   <div id="page-housekeeping" class="page"></div>
   <div id="page-puliziamobile" class="page"></div>
   <div id="page-biancheria" class="page"></div>
@@ -11315,7 +11317,7 @@ function navigate(page){
     housekeeping:renderHousekeeping,previsionale:renderPrevisionale,report:renderReport,biancheria:renderBiancheria,
     extra:renderExtra,manutenzione:renderManutenzione,adempimenti:renderAdempimenti,reportpasti:renderReportPasti,
     blacklist:renderBlacklist,ical:renderIcal,impostazioni:renderImpostazioni,
-    salvataggio:renderSalvataggio,sitoweb:renderSitoWeb,utenti:renderGestioneUtenti
+    salvataggio:renderSalvataggio,sitoweb:renderSitoWeb,utenti:renderGestioneUtenti,statistichesito:renderStatisticheSito
   };
   if(map[page]){
     try{
@@ -26156,6 +26158,190 @@ function salvaSitoWeb() {
   if (idx >= 0) all[idx] = c; else all.push(c);
   DB.set('siteContent', all);
   showToast('Contenuti del sito salvati — il sito li mostrerà appena aggiornato');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// STATISTICHE SITO — legge la tabella "site_visits" su Supabase, alimentata
+// da un piccolo script (analytics.js) inserito nelle pagine del sito pubblico
+// gretashouse.it. Ogni riga = una visualizzazione di pagina. Nota: i dati di
+// visualizzazione/ricerca su Booking.com NON sono disponibili qui — Booking.com
+// non offre un accesso pubblico a queste statistiche; vanno controllate
+// direttamente nella sezione "Analisi"/"Performance" del suo Extranet.
+// ══════════════════════════════════════════════════════════════════════════
+window._ssGiorni = window._ssGiorni || 30;
+
+function renderStatisticheSito() {
+  var el = document.getElementById('page-statistichesito');
+  if (!el) return;
+  el.innerHTML =
+    '<div class="page-header"><div><div class="page-title">📈 Statistiche sito</div><div class="page-subtitle">Visite al sito gretashouse.it — dati raccolti automaticamente</div></div></div>' +
+    '<div class="page-content" id="ss-body"><div style="padding:30px;color:var(--text3)">Caricamento statistiche…</div></div>';
+  _ssCaricaERendi();
+}
+
+async function _ssCaricaERendi() {
+  var body = document.getElementById('ss-body');
+  if (!body) return;
+  if (!supabaseClient || !supabaseReady) {
+    body.innerHTML = '<div class="card"><div class="modal-body">Il collegamento a Supabase non è pronto. Riprova tra qualche secondo, oppure controlla la connessione in Impostazioni.</div></div>';
+    return;
+  }
+  try {
+    var giorniIndietro = window._ssGiorni || 30;
+    var dataInizio = addDays(today(), -(giorniIndietro - 1));
+    var res = await supabaseClient.from('site_visits').select('*')
+      .gte('ts', dataInizio + 'T00:00:00Z')
+      .order('ts', { ascending: true })
+      .limit(20000);
+    if (res.error) throw res.error;
+    var visite = res.data || [];
+    body.innerHTML = _ssRenderHTML(visite, giorniIndietro);
+  } catch (e) {
+    body.innerHTML = '<div class="card"><div class="modal-body" style="color:var(--danger)">' +
+      'Errore nel caricare le statistiche: ' + (e && e.message ? e.message : e) +
+      '<div style="font-size:12px;color:var(--text3);margin-top:10px">Se è la prima volta che apri questa pagina, probabilmente la tabella "site_visits" non esiste ancora su Supabase: vedi le istruzioni fornite per crearla (SQL da eseguire una sola volta).</div>' +
+      '</div></div>';
+  }
+}
+
+function _ssCambiaPeriodo(g) {
+  window._ssGiorni = g;
+  _ssCaricaERendi();
+}
+
+function _ssKpi(label, val, colore, icona) {
+  return '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:10px;border-top:4px solid ' + colore + ';padding:16px 18px;flex:1;min-width:160px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">' + label + '</div>' +
+      '<div style="width:30px;height:30px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:15px">' + icona + '</div>' +
+    '</div>' +
+    '<div style="font-size:30px;font-weight:800;color:var(--text1)">' + val + '</div>' +
+  '</div>';
+}
+
+function _ssRenderHTML(visite, giorniIndietro) {
+  var totVisite = visite.length;
+  var sessioni = {};
+  visite.forEach(function(v){ if (v.session_id) sessioni[v.session_id] = true; });
+  var totSessioni = Object.keys(sessioni).length;
+  var oggi = today();
+  var visiteOggi = visite.filter(function(v){ return (v.ts || '').slice(0,10) === oggi; }).length;
+
+  var giorniArr = [];
+  for (var i = giorniIndietro - 1; i >= 0; i--) giorniArr.push(addDays(oggi, -i));
+  var perGiorno = giorniArr.map(function(g){
+    return visite.filter(function(v){ return (v.ts || '').slice(0,10) === g; }).length;
+  });
+  var maxGiorno = Math.max.apply(null, perGiorno.concat([1]));
+
+  var perPagina = {};
+  visite.forEach(function(v){ var p = v.page || '(sconosciuta)'; perPagina[p] = (perPagina[p]||0) + 1; });
+  var paginePopolari = Object.entries(perPagina).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 10);
+
+  var perDevice = { desktop: 0, mobile: 0 };
+  visite.forEach(function(v){ var d = v.device === 'mobile' ? 'mobile' : 'desktop'; perDevice[d] = (perDevice[d]||0) + 1; });
+
+  var perLingua = {};
+  visite.forEach(function(v){ var l = v.lang || 'it'; perLingua[l] = (perLingua[l]||0) + 1; });
+
+  var perProvenienza = {};
+  visite.forEach(function(v){
+    var ref = v.referrer, src = 'Diretto / sconosciuto';
+    if (ref) { try { src = new URL(ref).hostname.replace('www.',''); } catch(e) { src = 'Altro'; } }
+    perProvenienza[src] = (perProvenienza[src]||0) + 1;
+  });
+  var provenienzeTop = Object.entries(perProvenienza).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 8);
+
+  function barRow(label, val, max, colore) {
+    var pct = max > 0 ? Math.round(val/max*100) : 0;
+    return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+      '<div style="width:150px;font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+label+'">'+label+'</div>' +
+      '<div style="flex:1;background:var(--surface2);border-radius:5px;height:16px;overflow:hidden">' +
+        '<div style="width:'+pct+'%;background:'+(colore||'var(--accent)')+';height:100%"></div>' +
+      '</div>' +
+      '<div style="width:40px;text-align:right;font-size:12.5px;font-weight:700">'+val+'</div>' +
+    '</div>';
+  }
+
+  var chartW = 700, chartH = 90, barGap = 2;
+  var barW = giorniArr.length > 0 ? (chartW / giorniArr.length - barGap) : 0;
+  var barsHtml = perGiorno.map(function(v, idx){
+    var h = maxGiorno > 0 ? Math.max(2, (v/maxGiorno) * chartH) : 2;
+    var x = idx * (barW + barGap);
+    var y = chartH - h;
+    return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(barW,1).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="var(--accent)" rx="2"><title>'+giorniArr[idx]+': '+v+' visite</title></rect>';
+  }).join('');
+
+  var periodoBtns = [7,30,90].map(function(g){
+    var active = g === giorniIndietro;
+    return '<button class="btn btn-sm'+(active?' btn-primary':'')+'" onclick="_ssCambiaPeriodo('+g+')">'+g+' giorni</button>';
+  }).join(' ');
+
+  var etichetteLingua = { it: '🇮🇹 Italiano', en: '🇬🇧 Inglese', fr: '🇫🇷 Francese' };
+
+  return (
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">' +
+      '<div style="font-size:12.5px;color:var(--text3)">Ultimi '+giorniIndietro+' giorni</div>' +
+      '<div style="display:flex;gap:6px">'+periodoBtns+'</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">' +
+      _ssKpi('Visite totali', totVisite, '#1a73e8', '👁') +
+      _ssKpi('Sessioni uniche', totSessioni, '#16a34a', '👤') +
+      _ssKpi('Visite di oggi', visiteOggi, '#f59e0b', '📅') +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px">' +
+      '<div class="card-header"><span class="card-title">Andamento visite</span></div>' +
+      '<div class="modal-body">' +
+        (totVisite ?
+          '<svg viewBox="0 0 '+chartW+' '+chartH+'" width="100%" height="'+chartH+'" preserveAspectRatio="none">'+barsHtml+'</svg>' +
+          '<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);margin-top:4px">' +
+            '<span>'+fmtDate(giorniArr[0])+'</span><span>'+fmtDate(giorniArr[giorniArr.length-1])+'</span>' +
+          '</div>'
+        : '<div style="color:var(--text3);font-size:13px">Ancora nessuna visita registrata in questo periodo.</div>') +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap">' +
+      '<div class="card" style="flex:1;min-width:280px">' +
+        '<div class="card-header"><span class="card-title">Pagine più viste</span></div>' +
+        '<div class="modal-body">' +
+          (paginePopolari.length ? paginePopolari.map(function(p){ return barRow(p[0], p[1], paginePopolari[0][1]); }).join('') : '<div style="color:var(--text3);font-size:13px">Nessun dato ancora</div>') +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="flex:1;min-width:280px">' +
+        '<div class="card-header"><span class="card-title">Da dove arrivano</span></div>' +
+        '<div class="modal-body">' +
+          (provenienzeTop.length ? provenienzeTop.map(function(p){ return barRow(p[0], p[1], provenienzeTop[0][1], '#16a34a'); }).join('') : '<div style="color:var(--text3);font-size:13px">Nessun dato ancora</div>') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">' +
+      '<div class="card" style="flex:1;min-width:220px">' +
+        '<div class="card-header"><span class="card-title">Dispositivo</span></div>' +
+        '<div class="modal-body">' +
+          barRow('📱 Mobile', perDevice.mobile||0, Math.max(perDevice.mobile||0, perDevice.desktop||0, 1)) +
+          barRow('💻 Desktop', perDevice.desktop||0, Math.max(perDevice.mobile||0, perDevice.desktop||0, 1), '#f59e0b') +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="flex:1;min-width:220px">' +
+        '<div class="card-header"><span class="card-title">Lingua</span></div>' +
+        '<div class="modal-body">' +
+          (Object.keys(perLingua).length ? Object.entries(perLingua).sort(function(a,b){return b[1]-a[1];}).map(function(l){
+            return barRow(etichetteLingua[l[0]] || l[0], l[1], totVisite||1, '#8b5cf6');
+          }).join('') : '<div style="color:var(--text3);font-size:13px">Nessun dato ancora</div>') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-top:16px;background:var(--surface2)">' +
+      '<div class="modal-body" style="font-size:12.5px;color:var(--text3)">' +
+        '💡 Per le visualizzazioni e ricerche della struttura su <strong>Booking.com</strong>, questi dati non sono disponibili qui — Booking.com non offre un collegamento automatico a queste statistiche. Si trovano invece nella sezione <strong>"Analisi" / "Performance"</strong> del tuo account Booking.com Extranet.' +
+      '</div>' +
+    '</div>'
+  );
 }
 
 // Descrizione e foto per ciascuna tipologia di camera, usate dal sito pubblico (prenota.html) al posto
