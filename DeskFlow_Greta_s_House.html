@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 10:20</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 10:45</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -26245,7 +26245,21 @@ async function _ssCaricaERendi() {
     if (res.error) throw res.error;
     var visite = res.data || [];
     window._ssUltimeVisite = visite;
-    body.innerHTML = _ssRenderHTML(visite, periodo);
+
+    // Ricerche di disponibilità (date desiderate dai clienti) nello stesso periodo — tabella
+    // separata e facoltativa: se non esiste ancora (site_searches_setup.sql non eseguito), la
+    // pagina mostra comunque le visite normalmente, solo senza la sezione "Domanda per periodo".
+    var ricerche = [];
+    try {
+      var resR = await supabaseClient.from('site_searches').select('*')
+        .gte('ts', periodo.da + 'T00:00:00Z')
+        .lte('ts', periodo.a + 'T23:59:59Z')
+        .limit(20000);
+      if (!resR.error) ricerche = resR.data || [];
+    } catch (e2) { /* tabella site_searches non ancora creata: nessun problema */ }
+    window._ssUltimeRicerche = ricerche;
+
+    body.innerHTML = _ssRenderHTML(visite, periodo, ricerche);
   } catch (e) {
     body.innerHTML = '<div class="card"><div class="modal-body" style="color:var(--danger)">' +
       'Errore nel caricare le statistiche: ' + (e && e.message ? e.message : e) +
@@ -26286,7 +26300,8 @@ function _ssEsportaExcel() {
     var d = (b.createdAt||'').slice(0,10);
     return d && d >= periodo.da && d <= periodo.a;
   });
-  if (!visite.length && !prenotazioniPeriodo.length) { showToast('Nessun dato da esportare in questo periodo'); return; }
+  var ricerche = window._ssUltimeRicerche || [];
+  if (!visite.length && !prenotazioniPeriodo.length && !ricerche.length) { showToast('Nessun dato da esportare in questo periodo'); return; }
   if (!window.XLSX) { showToast('SheetJS non disponibile'); return; }
 
   var righeVisite = visite.map(function(v){
@@ -26313,9 +26328,22 @@ function _ssEsportaExcel() {
     };
   });
 
+  var righeRicerche = ricerche.map(function(rc){
+    return {
+      'Data ricerca': (rc.ts||'').slice(0,10),
+      'Check-in richiesto': rc.checkin || '',
+      'Check-out richiesto': rc.checkout || '',
+      Adulti: rc.adults || '',
+      Bambini: rc.children || '',
+      Esito: rc.esito === 'non_disponibile' ? 'Non disponibile' : 'Disponibile',
+      Sessione: rc.session_id || ''
+    };
+  });
+
   var wb = XLSX.utils.book_new();
   if (righeVisite.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righeVisite), 'Visite sito');
   if (righePortali.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righePortali), 'Prenotazioni per portale');
+  if (righeRicerche.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righeRicerche), 'Ricerche periodi');
   XLSX.writeFile(wb, 'statistiche-sito-'+periodo.da+'_'+periodo.a+'.xlsx');
 }
 
@@ -26329,7 +26357,8 @@ function _ssKpi(label, val, colore, icona) {
   '</div>';
 }
 
-function _ssRenderHTML(visite, periodo) {
+function _ssRenderHTML(visite, periodo, ricerche) {
+  ricerche = ricerche || [];
   var totVisite = visite.length;
   var sessioni = {};
   visite.forEach(function(v){ if (v.session_id) sessioni[v.session_id] = true; });
@@ -26381,6 +26410,33 @@ function _ssRenderHTML(visite, periodo) {
   });
   var fontiOrdinate = Object.entries(perFonte).sort(function(a,b){ return b[1].n - a[1].n; });
   var maxFonteN = Math.max.apply(null, fontiOrdinate.map(function(f){return f[1].n;}).concat([1]));
+
+  // Domanda per periodo: ogni ricerca sul sito ha un check-in/check-out "desiderato" — qui
+  // contiamo, per ogni notte di soggiorno richiesta, a quale mese appartiene (per capire quali
+  // mesi futuri interessano di più ai clienti) e le date/coppie di date più richieste in assoluto.
+  var notiPerMese = {};
+  var perCoppiaDate = {};
+  ricerche.forEach(function(rc){
+    var ci = rc.checkin, co = rc.checkout;
+    if (!ci || !co) return;
+    var chiaveCoppia = fmtDate(ci) + ' → ' + fmtDate(co);
+    if (!perCoppiaDate[chiaveCoppia]) perCoppiaDate[chiaveCoppia] = { n: 0, ci: ci };
+    perCoppiaDate[chiaveCoppia].n++;
+    var d = ci;
+    var guardia = 0;
+    while (d < co && guardia < 400) {
+      var mese = d.slice(0,7); // YYYY-MM
+      notiPerMese[mese] = (notiPerMese[mese]||0) + 1;
+      d = addDays(d, 1);
+      guardia++;
+    }
+  });
+  var mesiOrdinati = Object.keys(notiPerMese).sort();
+  var maxNottiMese = Math.max.apply(null, mesiOrdinati.map(function(m){return notiPerMese[m];}).concat([1]));
+  var coppieTop = Object.entries(perCoppiaDate).sort(function(a,b){ return b[1].n - a[1].n; }).slice(0, 10);
+  var MESI_IT = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  function etichettaMese(m){ var p = m.split('-'); return MESI_IT[parseInt(p[1],10)-1] + ' ' + p[0]; }
+  var ricercheSenzaDisponibilita = ricerche.filter(function(rc){ return rc.esito === 'non_disponibile'; }).length;
 
   function barRow(label, val, max, colore) {
     var pct = max > 0 ? Math.round(val/max*100) : 0;
@@ -26452,6 +26508,19 @@ function _ssRenderHTML(visite, periodo) {
             '<span>'+fmtDate(giorniArr[0])+'</span><span>'+fmtDate(giorniArr[giorniArr.length-1])+'</span>' +
           '</div>'
         : '<div style="color:var(--text3);font-size:13px">Ancora nessuna visita registrata in questo periodo.</div>') +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px">' +
+      '<div class="card-header"><span class="card-title">Domanda per periodo — quando vogliono soggiornare i clienti</span></div>' +
+      '<div class="modal-body">' +
+        (ricerche.length ?
+          '<div style="font-size:11.5px;color:var(--text3);margin-bottom:12px">'+ricerche.length+' ricerche effettuate in questo periodo'+(ricercheSenzaDisponibilita?' · '+ricercheSenzaDisponibilita+' senza disponibilità trovata':'')+'</div>' +
+          '<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Notti richieste per mese di soggiorno</div>' +
+          mesiOrdinati.map(function(m){ return barRow(etichettaMese(m), notiPerMese[m], maxNottiMese, '#8b5cf6'); }).join('') +
+          '<div style="font-size:12px;font-weight:700;color:var(--text2);margin:16px 0 6px">Periodi più richiesti</div>' +
+          coppieTop.map(function(c){ return barRow(c[0], c[1].n, coppieTop[0][1].n, '#f59e0b'); }).join('')
+        : '<div style="color:var(--text3);font-size:13px">Ancora nessuna ricerca registrata in questo periodo. Se hai appena attivato questa funzione, controlla di aver eseguito lo script SQL "site_searches_setup.sql" su Supabase e di aver caricato il modulo di prenotazione aggiornato.</div>') +
       '</div>' +
     '</div>' +
 
