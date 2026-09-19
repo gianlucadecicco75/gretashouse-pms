@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 09:40</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 10:05</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -26206,6 +26206,9 @@ function salvaSitoWeb() {
 // direttamente nella sezione "Analisi"/"Performance" del suo Extranet.
 // ══════════════════════════════════════════════════════════════════════════
 window._ssGiorni = window._ssGiorni || 30;
+window._ssRangeDa = window._ssRangeDa || null;   // range personalizzato (date esplicite), sovrascrive _ssGiorni quando impostato
+window._ssRangeA = window._ssRangeA || null;
+window._ssUltimeVisite = window._ssUltimeVisite || []; // ultimo risultato caricato, riusato dal pulsante Esporta Excel
 
 function renderStatisticheSito() {
   var el = document.getElementById('page-statistichesito');
@@ -26216,6 +26219,15 @@ function renderStatisticheSito() {
   _ssCaricaERendi();
 }
 
+function _ssPeriodo() {
+  // Se è impostato un range personalizzato (da/a) lo usa, altrimenti usa gli ultimi N giorni
+  if (window._ssRangeDa && window._ssRangeA) {
+    return { da: window._ssRangeDa, a: window._ssRangeA };
+  }
+  var giorniIndietro = window._ssGiorni || 30;
+  return { da: addDays(today(), -(giorniIndietro - 1)), a: today() };
+}
+
 async function _ssCaricaERendi() {
   var body = document.getElementById('ss-body');
   if (!body) return;
@@ -26224,15 +26236,16 @@ async function _ssCaricaERendi() {
     return;
   }
   try {
-    var giorniIndietro = window._ssGiorni || 30;
-    var dataInizio = addDays(today(), -(giorniIndietro - 1));
+    var periodo = _ssPeriodo();
     var res = await supabaseClient.from('site_visits').select('*')
-      .gte('ts', dataInizio + 'T00:00:00Z')
+      .gte('ts', periodo.da + 'T00:00:00Z')
+      .lte('ts', periodo.a + 'T23:59:59Z')
       .order('ts', { ascending: true })
       .limit(20000);
     if (res.error) throw res.error;
     var visite = res.data || [];
-    body.innerHTML = _ssRenderHTML(visite, giorniIndietro);
+    window._ssUltimeVisite = visite;
+    body.innerHTML = _ssRenderHTML(visite, periodo);
   } catch (e) {
     body.innerHTML = '<div class="card"><div class="modal-body" style="color:var(--danger)">' +
       'Errore nel caricare le statistiche: ' + (e && e.message ? e.message : e) +
@@ -26243,7 +26256,47 @@ async function _ssCaricaERendi() {
 
 function _ssCambiaPeriodo(g) {
   window._ssGiorni = g;
+  window._ssRangeDa = null;
+  window._ssRangeA = null;
   _ssCaricaERendi();
+}
+
+function _ssApplicaRange() {
+  var da = (document.getElementById('ss-range-da')||{}).value;
+  var a = (document.getElementById('ss-range-a')||{}).value;
+  if (!da || !a) { showToast('Seleziona entrambe le date'); return; }
+  if (da > a) { showToast('La data "Da" deve essere prima della data "A"'); return; }
+  window._ssRangeDa = da;
+  window._ssRangeA = a;
+  _ssCaricaERendi();
+}
+
+function _ssResetRange() {
+  window._ssRangeDa = null;
+  window._ssRangeA = null;
+  window._ssGiorni = 30;
+  _ssCaricaERendi();
+}
+
+function _ssEsportaExcel() {
+  var visite = window._ssUltimeVisite || [];
+  if (!visite.length) { showToast('Nessuna visita da esportare in questo periodo'); return; }
+  if (!window.XLSX) { showToast('SheetJS non disponibile'); return; }
+  var righe = visite.map(function(v){
+    return {
+      Data: (v.ts||'').slice(0,10),
+      Ora: (v.ts||'').slice(11,19),
+      Pagina: v.page || '',
+      Lingua: v.lang || '',
+      Provenienza: v.referrer || 'Diretto',
+      Dispositivo: v.device || '',
+      Sessione: v.session_id || ''
+    };
+  });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righe), 'Visite sito');
+  var periodo = _ssPeriodo();
+  XLSX.writeFile(wb, 'statistiche-sito-'+periodo.da+'_'+periodo.a+'.xlsx');
 }
 
 function _ssKpi(label, val, colore, icona) {
@@ -26256,7 +26309,7 @@ function _ssKpi(label, val, colore, icona) {
   '</div>';
 }
 
-function _ssRenderHTML(visite, giorniIndietro) {
+function _ssRenderHTML(visite, periodo) {
   var totVisite = visite.length;
   var sessioni = {};
   visite.forEach(function(v){ if (v.session_id) sessioni[v.session_id] = true; });
@@ -26265,7 +26318,8 @@ function _ssRenderHTML(visite, giorniIndietro) {
   var visiteOggi = visite.filter(function(v){ return (v.ts || '').slice(0,10) === oggi; }).length;
 
   var giorniArr = [];
-  for (var i = giorniIndietro - 1; i >= 0; i--) giorniArr.push(addDays(oggi, -i));
+  var dCursor = periodo.da;
+  while (dCursor <= periodo.a) { giorniArr.push(dCursor); dCursor = addDays(dCursor, 1); }
   var perGiorno = giorniArr.map(function(g){
     return visite.filter(function(v){ return (v.ts || '').slice(0,10) === g; }).length;
   });
@@ -26309,17 +26363,39 @@ function _ssRenderHTML(visite, giorniIndietro) {
     return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(barW,1).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="var(--accent)" rx="2"><title>'+giorniArr[idx]+': '+v+' visite</title></rect>';
   }).join('');
 
+  var rangeAttivo = !!(window._ssRangeDa && window._ssRangeA);
   var periodoBtns = [7,30,90].map(function(g){
-    var active = g === giorniIndietro;
+    var active = !rangeAttivo && g === window._ssGiorni;
     return '<button class="btn btn-sm'+(active?' btn-primary':'')+'" onclick="_ssCambiaPeriodo('+g+')">'+g+' giorni</button>';
   }).join(' ');
+
+  var etichettaPeriodo = rangeAttivo
+    ? ('Dal '+fmtDate(periodo.da)+' al '+fmtDate(periodo.a))
+    : ('Ultimi '+(window._ssGiorni||30)+' giorni');
 
   var etichetteLingua = { it: '🇮🇹 Italiano', en: '🇬🇧 Inglese', fr: '🇫🇷 Francese' };
 
   return (
-    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">' +
-      '<div style="font-size:12.5px;color:var(--text3)">Ultimi '+giorniIndietro+' giorni</div>' +
-      '<div style="display:flex;gap:6px">'+periodoBtns+'</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">' +
+      '<div style="font-size:12.5px;color:var(--text3)">'+etichettaPeriodo+'</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+periodoBtns+
+        '<button class="btn btn-sm" onclick="_ssEsportaExcel()">📊 Esporta Excel</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px">' +
+      '<div class="modal-body" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">' +
+        '<div class="form-group" style="margin:0">' +
+          '<label style="font-size:11px">Da</label>' +
+          '<input type="date" id="ss-range-da" value="'+(periodo.da||'')+'" style="padding:6px 8px;font-size:13px">' +
+        '</div>' +
+        '<div class="form-group" style="margin:0">' +
+          '<label style="font-size:11px">A</label>' +
+          '<input type="date" id="ss-range-a" value="'+(periodo.a||'')+'" style="padding:6px 8px;font-size:13px">' +
+        '</div>' +
+        '<button class="btn btn-sm btn-primary" onclick="_ssApplicaRange()">Filtra</button>' +
+        (rangeAttivo ? '<button class="btn btn-sm" onclick="_ssResetRange()">↺ Torna al periodo standard</button>' : '') +
+      '</div>' +
     '</div>' +
 
     '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">' +
