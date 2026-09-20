@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 20/09/2026 · 12:00</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 20/09/2026 · 19:56</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -15554,18 +15554,19 @@ function pyLinkImporto(importo){
   var val = (Math.round(importo*100)/100).toString();
   return 'https://paypal.me/'+handle+'/'+val+'EUR';
 }
+var PY_MSG_DEFAULT = {
+  it: 'Ciao {nome}! 🌊\n\nTi scrivo per il pagamento{nota} di {importo} per il tuo soggiorno da Greta\'s House.\n\nPuoi pagare comodamente con PayPal o carta di credito da questo link, senza bisogno di un account PayPal:\n\n👉 {link}\n\nGrazie mille!',
+  en: 'Hi {nome}! 🌊\n\nGetting in touch about the payment{nota} of {importo} for your stay at Greta\'s House.\n\nYou can pay easily with PayPal or a credit card via this link, no PayPal account needed:\n\n👉 {link}\n\nThank you so much!',
+  de: 'Hallo {nome}! 🌊\n\nHier die Zahlung{nota} von {importo} für Ihren Aufenthalt bei Greta\'s House.\n\nSie können bequem mit PayPal oder Kreditkarte über diesen Link bezahlen, ohne PayPal-Konto:\n\n👉 {link}\n\nVielen Dank!',
+  fr: 'Bonjour {nome}! 🌊\n\nJe vous contacte pour le paiement{nota} de {importo} pour votre séjour à Greta\'s House.\n\nVous pouvez payer facilement par PayPal ou carte de crédit via ce lien, sans compte PayPal nécessaire :\n\n👉 {link}\n\nMerci beaucoup !',
+};
 function pyTestoRichiesta(b, importo, nota){
   var s = DB.getObj('settings', {});
   var lang = rcRilevaLingua(b);
   var importoTxt = (Math.round(importo*100)/100).toFixed(2).replace('.', ',') + ' €';
   var link = pyLinkImporto(importo);
-  var modelli = {
-    it: 'Ciao {nome}! 🌊\n\nTi scrivo per il pagamento{nota} di {importo} per il tuo soggiorno da Greta\'s House.\n\nPuoi pagare comodamente con PayPal o carta di credito da questo link, senza bisogno di un account PayPal:\n\n👉 {link}\n\nGrazie mille!',
-    en: 'Hi {nome}! 🌊\n\nGetting in touch about the payment{nota} of {importo} for your stay at Greta\'s House.\n\nYou can pay easily with PayPal or a credit card via this link, no PayPal account needed:\n\n👉 {link}\n\nThank you so much!',
-    de: 'Hallo {nome}! 🌊\n\nHier die Zahlung{nota} von {importo} für Ihren Aufenthalt bei Greta\'s House.\n\nSie können bequem mit PayPal oder Kreditkarte über diesen Link bezahlen, ohne PayPal-Konto:\n\n👉 {link}\n\nVielen Dank!',
-    fr: 'Bonjour {nome}! 🌊\n\nJe vous contacte pour le paiement{nota} de {importo} pour votre séjour à Greta\'s House.\n\nVous pouvez payer facilement par PayPal ou carte de crédit via ce lien, sans compte PayPal nécessaire :\n\n👉 {link}\n\nMerci beaucoup !',
-  };
-  var modello = modelli[lang] || modelli.it;
+  var modelli = s.pagamentoMsgByLang || {};
+  var modello = modelli[lang] || modelli.it || PY_MSG_DEFAULT[lang] || PY_MSG_DEFAULT.it;
   var notaTxt = nota ? (' ('+nota+')') : '';
   return modello.replace(/\{nome\}/g, b.guestName||'').replace(/\{importo\}/g, importoTxt).replace(/\{link\}/g, link).replace(/\{nota\}/g, notaTxt);
 }
@@ -15578,16 +15579,23 @@ function pyApriRichiesta(bookingId){
   var g = b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
   var tel = g && g.phone ? g.phone : '';
   var mail = g && g.email ? g.email : '';
+  var importoIniziale = b.totalPrice ? Math.round(b.totalPrice*100)/100 : 0;
+  var testoIniziale = importoIniziale ? pyTestoRichiesta(b, importoIniziale, '') : '';
   showModal('Richiedi pagamento a '+(b.guestName||''),
     '<div style="font-size:12.5px;color:var(--text3);margin-bottom:12px">'+(b.pagamentoRichiesto?'⚠ Già inviata una richiesta in precedenza — puoi comunque inviarne un\'altra.':'')+'</div>'+
     '<div class="form-grid">'+
-      '<div class="form-group full">'+
+      '<div class="form-group">'+
         '<label>Importo da richiedere (€)</label>'+
-        '<input type="number" id="py-importo" min="0" step="0.01" placeholder="Es. 100" value="'+(b.totalPrice?Math.round(b.totalPrice*100)/100:'')+'">'+
+        '<input type="number" id="py-importo" min="0" step="0.01" placeholder="Es. 100" value="'+(importoIniziale||'')+'" oninput="pyRigeneraTesto(\''+b.id+'\')">'+
+      '</div>'+
+      '<div class="form-group">'+
+        '<label>Nota (facoltativa — es. "caparra", "saldo")</label>'+
+        '<input type="text" id="py-nota" placeholder="Es. caparra" oninput="pyRigeneraTesto(\''+b.id+'\')">'+
       '</div>'+
       '<div class="form-group full">'+
-        '<label>Nota (facoltativa — es. "caparra", "saldo")</label>'+
-        '<input type="text" id="py-nota" placeholder="Es. caparra">'+
+        '<label>Messaggio che verrà inviato — puoi modificarlo liberamente prima di mandarlo</label>'+
+        '<textarea id="py-testo" rows="7" style="width:100%">'+(testoIniziale||'').replace(/</g,'&lt;')+'</textarea>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:3px">Se cambi importo o nota qui sopra, il testo viene rigenerato dal modello (impostabile in Impostazioni → 💳 Pagamenti PayPal) — eventuali modifiche manuali al testo vengono sovrascritte.</div>'+
       '</div>'+
     '</div>'+
     '<div style="display:flex;gap:8px;margin-top:14px">'+
@@ -15602,21 +15610,35 @@ function pyLeggiImporto(){
   if (!val || val<=0) { showToast('Inserisci un importo valido'); return null; }
   return val;
 }
+function pyRigeneraTesto(bookingId){
+  var importo = parseFloat(document.getElementById('py-importo')?.value);
+  var nota = (document.getElementById('py-nota')?.value || '').trim();
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  var ta = document.getElementById('py-testo');
+  if (!b || !ta) return;
+  ta.value = (importo && importo>0) ? pyTestoRichiesta(b, importo, nota) : '';
+}
 function pySegnaRichiesta(bookingId){
   var bookings = DB.get('bookings') || [];
   var idx = bookings.findIndex(function(x){ return x.id===bookingId; });
   if (idx>=0) { bookings[idx].pagamentoRichiesto = true; DB.set('bookings', bookings); }
 }
+function pyLeggiTesto(){
+  var testo = (document.getElementById('py-testo')?.value || '').trim();
+  if (!testo) { showToast('Il messaggio è vuoto'); return null; }
+  return testo;
+}
 function pyInviaWA(bookingId){
   var importo = pyLeggiImporto();
   if (importo===null) return;
-  var nota = (document.getElementById('py-nota')?.value || '').trim();
+  var testo = pyLeggiTesto();
+  if (testo===null) return;
   var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
   var guests = DB.get('guests') || [];
   var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
   if (!b || !g || !g.phone) { showToast('Telefono non disponibile'); return; }
   var tel = g.phone.replace(/[^\d+]/g,'');
-  window.open('https://api.whatsapp.com/send?phone='+encodeURIComponent(tel)+'&text='+encodeURIComponent(pyTestoRichiesta(b, importo, nota)), '_blank');
+  window.open('https://api.whatsapp.com/send?phone='+encodeURIComponent(tel)+'&text='+encodeURIComponent(testo), '_blank');
   pySegnaRichiesta(bookingId);
   closeModal();
   showToast('✅ Richiesta di pagamento inviata');
@@ -15624,7 +15646,8 @@ function pyInviaWA(bookingId){
 async function pyInviaMail(bookingId){
   var importo = pyLeggiImporto();
   if (importo===null) return;
-  var nota = (document.getElementById('py-nota')?.value || '').trim();
+  var testo = pyLeggiTesto();
+  if (testo===null) return;
   var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
   var guests = DB.get('guests') || [];
   var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
@@ -15640,7 +15663,7 @@ async function pyInviaMail(bookingId){
         smtpEmail: s.emailInvioPromemoria, smtpPassword: s.passwordInvioPromemoria,
         to: g.email, toName: b.guestName,
         subject: 'Richiesta di pagamento — Greta\'s House',
-        message: pyTestoRichiesta(b, importo, nota),
+        message: testo,
       })
     });
     var data = await res.json();
@@ -30164,8 +30187,7 @@ function renderImpostazioni() {
   document.getElementById('page-impostazioni').innerHTML = `
     <div class="page-header"><div><div class="page-title">Impostazioni</div></div></div>
     <div class="page-content" style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
-      <div style="position:sticky;top:0;z-index:50;background:var(--surface,#fff);border-bottom:1px solid var(--border2);padding:8px 4px;margin-bottom:14px;display:flex;gap:6px;overflow-x:auto;width:100%"><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-canali-ota').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🔌 Canali OTA collegati</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-0').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Struttura</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-1').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🔗 Collegamenti & accessi</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-2').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">⭐ Recensioni Google</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-3').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Housekeeping</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-4').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Tassa di soggiorno</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-5').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Dati società</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-6').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Backup completo / trasferimento dati</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-7').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Margine per i portali (OTA)</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-sconti-lunghi').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🎉 Sconti soggiorni lunghi</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-8').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Aspetto Calendario</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-9').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🛏️ Supplementi in camera</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-10').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🎨 Colori prenotazioni</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-11').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Scelta camera dal preventivo</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-12').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modello messaggio preventivo</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-13').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modelli di messaggio</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-14').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Check-in online e prenotazione web</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-15').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modello messaggio di conferma prenotazione</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-16').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Scansione documenti — link per la reception</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-17').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Housekeeping — link per le pulizie</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-18').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Sincronizzazione multi-PC (Supabase)</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-19').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Invio email reale</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-20').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Dati</button></div>
-      ${renderCanaliOTAHTML()}
+      <div style="position:sticky;top:0;z-index:50;background:var(--surface,#fff);border-bottom:1px solid var(--border2);padding:8px 4px;margin-bottom:14px;display:flex;gap:6px;overflow-x:auto;width:100%"><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-0').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Struttura</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-1').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🔗 Collegamenti & accessi</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-2').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">⭐ Recensioni Google</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-paypal').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">💳 Pagamenti PayPal</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-3').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Housekeeping</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-canali-ota').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🔌 Canali OTA collegati</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-4').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Tassa di soggiorno</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-5').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Dati società</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-6').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Backup completo / trasferimento dati</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-7').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Margine per i portali (OTA)</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-sconti-lunghi').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🎉 Sconti soggiorni lunghi</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-8').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Aspetto Calendario</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-9').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🛏️ Supplementi in camera</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-10').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">🎨 Colori prenotazioni</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-11').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Scelta camera dal preventivo</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-12').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modello messaggio preventivo</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-13').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modelli di messaggio</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-14').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Check-in online e prenotazione web</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-15').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Modello messaggio di conferma prenotazione</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-16').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Scansione documenti — link per la reception</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-17').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Housekeeping — link per le pulizie</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-18').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Sincronizzazione multi-PC (Supabase)</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-19').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Invio email reale</button><button type="button" class="btn btn-sm" onclick="document.getElementById('imp-sez-20').scrollIntoView({behavior:'smooth',block:'start'})" style="white-space:nowrap">Dati</button></div>
       <div class="card" id="imp-sez-0" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Struttura</span></div>
         <div class="modal-body">
@@ -30271,6 +30293,26 @@ function renderImpostazioni() {
               <input type="text" id="s-paypalme-handle" value="${s.paypalMeHandle||''}" placeholder="gretashouseotranto">
               <div style="font-size:11px;color:var(--text3);margin-top:3px">Solo il nome utente, senza "paypal.me/" davanti (es. <code>gretashouseotranto</code> per il link <code>paypal.me/gretashouseotranto</code>). Gratuito, nessun abbonamento: crealo su <a href="https://www.paypal.com/paypalme" target="_blank" rel="noopener">paypal.com/paypalme</a>. Una volta impostato, dalla scheda di ogni prenotazione potrai generare un link con l'importo che vuoi chiedere e mandarlo via WhatsApp o email — il pagamento andrà controllato manualmente su PayPal e poi segnato nel Conto.</div>
             </div>
+            <div class="form-group full">
+              <label>Messaggio richiesta di pagamento — una versione per lingua</label>
+              <div style="font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:8px">Usa <code>{nome}</code>, <code>{importo}</code>, <code>{nota}</code> e <code>{link}</code> — vengono sostituiti automaticamente. Questo è solo il testo di partenza: prima di ogni invio potrai comunque modificarlo a mano nella finestra "Richiedi pagamento".</div>
+              <div style="display:flex;gap:4px;margin-bottom:8px" id="py-lang-tabs">
+                ${['it','en','de','fr'].map(function(lang,i){
+                  var bandiere = {it:'🇮🇹 IT', en:'🇬🇧 EN', de:'🇩🇪 DE', fr:'🇫🇷 FR'};
+                  return '<button type="button" class="btn btn-sm rc-lang-tab" data-lang="'+lang+'" onclick="rcCambiaSchedaLingua(\''+lang+'\')" style="'+(i===0?'background:var(--accent);color:#fff':'')+'">'+bandiere[lang]+'</button>';
+                }).join('')}
+              </div>
+              ${['it','en','de','fr'].map(function(lang, i){
+                var defaults = {
+                  it: 'Ciao {nome}! 🌊\n\nTi scrivo per il pagamento{nota} di {importo} per il tuo soggiorno da Greta\'s House.\n\nPuoi pagare comodamente con PayPal o carta di credito da questo link, senza bisogno di un account PayPal:\n\n👉 {link}\n\nGrazie mille!',
+                  en: 'Hi {nome}! 🌊\n\nGetting in touch about the payment{nota} of {importo} for your stay at Greta\'s House.\n\nYou can pay easily with PayPal or a credit card via this link, no PayPal account needed:\n\n👉 {link}\n\nThank you so much!',
+                  de: 'Hallo {nome}! 🌊\n\nHier die Zahlung{nota} von {importo} für Ihren Aufenthalt bei Greta\'s House.\n\nSie können bequem mit PayPal oder Kreditkarte über diesen Link bezahlen, ohne PayPal-Konto:\n\n👉 {link}\n\nVielen Dank!',
+                  fr: 'Bonjour {nome}! 🌊\n\nJe vous contacte pour le paiement{nota} de {importo} pour votre séjour à Greta\'s House.\n\nVous pouvez payer facilement par PayPal ou carte de crédit via ce lien, sans compte PayPal nécessaire :\n\n👉 {link}\n\nMerci beaucoup !'
+                };
+                var valore = (s.pagamentoMsgByLang && s.pagamentoMsgByLang[lang]) || defaults[lang];
+                return '<textarea id="s-pagamento-msg-'+lang+'" class="rc-lang-pane" data-lang="'+lang+'" rows="6" style="width:100%;'+(i===0?'':'display:none')+'">'+valore.replace(/</g,'&lt;')+'</textarea>';
+              }).join('')}
+            </div>
       </div></div></div>
 
       <div class="card" id="imp-sez-3" style="max-width:500px;flex:1 1 460px">
@@ -30285,6 +30327,8 @@ function renderImpostazioni() {
               Durante un soggiorno, l'Housekeeping segnala automaticamente i giorni in cui va cambiata la biancheria, in base a questo intervallo. Il cambio non viene segnalato se cade nell'ultimo giorno (o nel penultimo) prima della partenza, per evitare cambi inutili quando l'ospite sta per lasciare la camera.
             </div>
       </div></div></div>
+
+      ${renderCanaliOTAHTML()}
 
       <div class="card" id="imp-sez-4" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Tassa di soggiorno</span></div>
@@ -30940,6 +30984,10 @@ function saveImpostazioni() {
   s.recensioneAutoAttivo = !!document.getElementById('s-recensioneAutoAttivo')?.checked;
   s.recensioneAutoGiorni = Math.max(1, Math.min(30, parseInt(document.getElementById('s-recensioneAutoGiorni')?.value) || 2));
   s.paypalMeHandle = (document.getElementById('s-paypalme-handle')?.value || '').trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '').replace(/\/$/, '');
+  s.pagamentoMsgByLang = {};
+  ['it','en','de','fr'].forEach(function(lang){
+    s.pagamentoMsgByLang[lang] = document.getElementById('s-pagamento-msg-'+lang)?.value || '';
+  });
   s.currency      = document.getElementById('s-currency').value;
   // s.logo non va toccato qui: resta quello già salvato, si cambia solo con Carica/Rimuovi logo
   s.cityTax          = parseFloat(document.getElementById('s-tax').value)||0;
