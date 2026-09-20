@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 19/09/2026 · 13:20</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 20/09/2026 · 12:00</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -15547,6 +15547,113 @@ async function rcInviaMail(bookingId){
   }
 }
 
+// ===== Richiesta di pagamento via PayPal.me =====
+function pyLinkImporto(importo){
+  var s = DB.getObj('settings', {});
+  var handle = (s.paypalMeHandle||'').trim();
+  var val = (Math.round(importo*100)/100).toString();
+  return 'https://paypal.me/'+handle+'/'+val+'EUR';
+}
+function pyTestoRichiesta(b, importo, nota){
+  var s = DB.getObj('settings', {});
+  var lang = rcRilevaLingua(b);
+  var importoTxt = (Math.round(importo*100)/100).toFixed(2).replace('.', ',') + ' €';
+  var link = pyLinkImporto(importo);
+  var modelli = {
+    it: 'Ciao {nome}! 🌊\n\nTi scrivo per il pagamento{nota} di {importo} per il tuo soggiorno da Greta\'s House.\n\nPuoi pagare comodamente con PayPal o carta di credito da questo link, senza bisogno di un account PayPal:\n\n👉 {link}\n\nGrazie mille!',
+    en: 'Hi {nome}! 🌊\n\nGetting in touch about the payment{nota} of {importo} for your stay at Greta\'s House.\n\nYou can pay easily with PayPal or a credit card via this link, no PayPal account needed:\n\n👉 {link}\n\nThank you so much!',
+    de: 'Hallo {nome}! 🌊\n\nHier die Zahlung{nota} von {importo} für Ihren Aufenthalt bei Greta\'s House.\n\nSie können bequem mit PayPal oder Kreditkarte über diesen Link bezahlen, ohne PayPal-Konto:\n\n👉 {link}\n\nVielen Dank!',
+    fr: 'Bonjour {nome}! 🌊\n\nJe vous contacte pour le paiement{nota} de {importo} pour votre séjour à Greta\'s House.\n\nVous pouvez payer facilement par PayPal ou carte de crédit via ce lien, sans compte PayPal nécessaire :\n\n👉 {link}\n\nMerci beaucoup !',
+  };
+  var modello = modelli[lang] || modelli.it;
+  var notaTxt = nota ? (' ('+nota+')') : '';
+  return modello.replace(/\{nome\}/g, b.guestName||'').replace(/\{importo\}/g, importoTxt).replace(/\{link\}/g, link).replace(/\{nota\}/g, notaTxt);
+}
+function pyApriRichiesta(bookingId){
+  var s = DB.getObj('settings', {});
+  if (!s.paypalMeHandle) { showToast('Imposta prima il tuo nome utente PayPal.me in Impostazioni'); return; }
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  if (!b) return;
+  var guests = DB.get('guests') || [];
+  var g = b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+  var tel = g && g.phone ? g.phone : '';
+  var mail = g && g.email ? g.email : '';
+  showModal('Richiedi pagamento a '+(b.guestName||''),
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:12px">'+(b.pagamentoRichiesto?'⚠ Già inviata una richiesta in precedenza — puoi comunque inviarne un\'altra.':'')+'</div>'+
+    '<div class="form-grid">'+
+      '<div class="form-group full">'+
+        '<label>Importo da richiedere (€)</label>'+
+        '<input type="number" id="py-importo" min="0" step="0.01" placeholder="Es. 100" value="'+(b.totalPrice?Math.round(b.totalPrice*100)/100:'')+'">'+
+      '</div>'+
+      '<div class="form-group full">'+
+        '<label>Nota (facoltativa — es. "caparra", "saldo")</label>'+
+        '<input type="text" id="py-nota" placeholder="Es. caparra">'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;margin-top:14px">'+
+      '<button class="btn" style="flex:1" '+(tel?'':'disabled')+' onclick="pyInviaWA(\''+b.id+'\')">💬 WhatsApp'+(tel?'':' (nessun telefono)')+'</button>'+
+      '<button class="btn" style="flex:1" '+(mail?'':'disabled')+' onclick="pyInviaMail(\''+b.id+'\')">✉️ Email'+(mail?'':' (nessuna email)')+'</button>'+
+    '</div>',
+    '<button class="btn" onclick="closeModal()">Annulla</button>'
+  );
+}
+function pyLeggiImporto(){
+  var val = parseFloat(document.getElementById('py-importo')?.value);
+  if (!val || val<=0) { showToast('Inserisci un importo valido'); return null; }
+  return val;
+}
+function pySegnaRichiesta(bookingId){
+  var bookings = DB.get('bookings') || [];
+  var idx = bookings.findIndex(function(x){ return x.id===bookingId; });
+  if (idx>=0) { bookings[idx].pagamentoRichiesto = true; DB.set('bookings', bookings); }
+}
+function pyInviaWA(bookingId){
+  var importo = pyLeggiImporto();
+  if (importo===null) return;
+  var nota = (document.getElementById('py-nota')?.value || '').trim();
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  var guests = DB.get('guests') || [];
+  var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+  if (!b || !g || !g.phone) { showToast('Telefono non disponibile'); return; }
+  var tel = g.phone.replace(/[^\d+]/g,'');
+  window.open('https://api.whatsapp.com/send?phone='+encodeURIComponent(tel)+'&text='+encodeURIComponent(pyTestoRichiesta(b, importo, nota)), '_blank');
+  pySegnaRichiesta(bookingId);
+  closeModal();
+  showToast('✅ Richiesta di pagamento inviata');
+}
+async function pyInviaMail(bookingId){
+  var importo = pyLeggiImporto();
+  if (importo===null) return;
+  var nota = (document.getElementById('py-nota')?.value || '').trim();
+  var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
+  var guests = DB.get('guests') || [];
+  var g = b && b.guestId ? guests.find(function(x){ return x.id===b.guestId; }) : null;
+  if (!b || !g || !g.email) { showToast('Email non disponibile'); return; }
+  var s = DB.getObj('settings', {});
+  if (!s.supabaseUrl || !s.supabaseKey) { showToast('Configura prima Supabase in Impostazioni'); return; }
+  showToast('Invio in corso…');
+  try {
+    var res = await fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/invio-ricevuta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+s.supabaseKey, 'apikey': s.supabaseKey },
+      body: JSON.stringify({
+        smtpEmail: s.emailInvioPromemoria, smtpPassword: s.passwordInvioPromemoria,
+        to: g.email, toName: b.guestName,
+        subject: 'Richiesta di pagamento — Greta\'s House',
+        message: pyTestoRichiesta(b, importo, nota),
+      })
+    });
+    var data = await res.json();
+    if (!data.ok) throw new Error(data.errore || 'invio non riuscito');
+    pySegnaRichiesta(bookingId);
+    showToast('✅ Email inviata a '+g.email);
+    closeModal();
+  } catch (err) {
+    console.error('Errore invio richiesta pagamento:', err);
+    showToast('⚠ Invio non riuscito — controlla la configurazione email in Impostazioni');
+  }
+}
+
 function renderRecensioni(){
   var html = '<div class="page-header"><div><div class="page-title">⭐ Recensioni</div>'+
     '<div class="page-subtitle">Lette e rispondibili direttamente da qui, tramite Hostex</div></div>'+
@@ -20112,6 +20219,7 @@ function openDettaglioPrenotazione(id) {
         `<button class="btn" onclick="closeModal(); apriContoScegli('${b.id}')">🧾 Conto</button>` +
         `<button class="btn" onclick="apriProforma('${b.id}')" title="Riepilogo dell'importo dovuto da mostrare/stampare, senza registrare nulla nei Corrispettivi">📋 Proforma</button>` +
         `<button class="btn" onclick="stampaSchedaPrenotazione('${b.id}')">🖨 Stampa scheda</button>` +
+        `<button class="btn" style="background:#0070ba;color:#fff;border-color:#0070ba" onclick="closeModal(); pyApriRichiesta('${b.id}')">💳 Richiedi pagamento</button>` +
         (b.checkout < today() ? `<button class="btn" style="background:#fbbc04;color:#000;border-color:#fbbc04" onclick="closeModal(); rcApriInvioRichiestaSingola('${b.id}')">⭐ Richiedi recensione</button>` : '') +
       '</div>' +
       (function(){
@@ -30154,6 +30262,17 @@ function renderImpostazioni() {
             </div>
       </div></div></div>
 
+      <div class="card" id="imp-sez-paypal" style="max-width:500px;flex:1 1 460px">
+        <div class="card-header"><span class="card-title">💳 Pagamenti PayPal</span></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Il tuo nome utente PayPal.me</label>
+              <input type="text" id="s-paypalme-handle" value="${s.paypalMeHandle||''}" placeholder="gretashouseotranto">
+              <div style="font-size:11px;color:var(--text3);margin-top:3px">Solo il nome utente, senza "paypal.me/" davanti (es. <code>gretashouseotranto</code> per il link <code>paypal.me/gretashouseotranto</code>). Gratuito, nessun abbonamento: crealo su <a href="https://www.paypal.com/paypalme" target="_blank" rel="noopener">paypal.com/paypalme</a>. Una volta impostato, dalla scheda di ogni prenotazione potrai generare un link con l'importo che vuoi chiedere e mandarlo via WhatsApp o email — il pagamento andrà controllato manualmente su PayPal e poi segnato nel Conto.</div>
+            </div>
+      </div></div></div>
+
       <div class="card" id="imp-sez-3" style="max-width:500px;flex:1 1 460px">
         <div class="card-header"><span class="card-title">Housekeeping</span></div>
         <div class="modal-body">
@@ -30820,6 +30939,7 @@ function saveImpostazioni() {
   });
   s.recensioneAutoAttivo = !!document.getElementById('s-recensioneAutoAttivo')?.checked;
   s.recensioneAutoGiorni = Math.max(1, Math.min(30, parseInt(document.getElementById('s-recensioneAutoGiorni')?.value) || 2));
+  s.paypalMeHandle = (document.getElementById('s-paypalme-handle')?.value || '').trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '').replace(/\/$/, '');
   s.currency      = document.getElementById('s-currency').value;
   // s.logo non va toccato qui: resta quello già salvato, si cambia solo con Carica/Rimuovi logo
   s.cityTax          = parseFloat(document.getElementById('s-tax').value)||0;
@@ -32760,7 +32880,7 @@ function leggiDatiFatturazioneForm() {
 }
 
 // ── Gestione righe di pagamento multiplo nella maschera Conto ──
-const CONTO_METODI = ['Contanti','Carta di credito','POS','Bonifico','Altro'];
+const CONTO_METODI = ['Contanti','Carta di credito','POS','Bonifico','PayPal','Altro'];
 function rigaPagamentoHTML(metodo, importo, destinazione) {
   const rid = 'pagrow_'+uid();
   const mostraDestinazione = metodo === 'Bonifico';
