@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 20/09/2026 · 19:56</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 20/09/2026 · 20:03</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -15560,7 +15560,13 @@ var PY_MSG_DEFAULT = {
   de: 'Hallo {nome}! 🌊\n\nHier die Zahlung{nota} von {importo} für Ihren Aufenthalt bei Greta\'s House.\n\nSie können bequem mit PayPal oder Kreditkarte über diesen Link bezahlen, ohne PayPal-Konto:\n\n👉 {link}\n\nVielen Dank!',
   fr: 'Bonjour {nome}! 🌊\n\nJe vous contacte pour le paiement{nota} de {importo} pour votre séjour à Greta\'s House.\n\nVous pouvez payer facilement par PayPal ou carte de crédit via ce lien, sans compte PayPal nécessaire :\n\n👉 {link}\n\nMerci beaucoup !',
 };
-function pyTestoRichiesta(b, importo, nota){
+var PY_SUMUP_EXTRA = {
+  it: '\n\nIn alternativa, puoi pagare con carta anche tramite questo link SumUp:\n👉 {link_sumup}',
+  en: '\n\nAlternatively, you can also pay by card via this SumUp link:\n👉 {link_sumup}',
+  de: '\n\nAlternativ können Sie auch über diesen SumUp-Link mit Karte bezahlen:\n👉 {link_sumup}',
+  fr: '\n\nVous pouvez aussi payer par carte via ce lien SumUp :\n👉 {link_sumup}',
+};
+function pyTestoRichiesta(b, importo, nota, sumupLink){
   var s = DB.getObj('settings', {});
   var lang = rcRilevaLingua(b);
   var importoTxt = (Math.round(importo*100)/100).toFixed(2).replace('.', ',') + ' €';
@@ -15568,7 +15574,12 @@ function pyTestoRichiesta(b, importo, nota){
   var modelli = s.pagamentoMsgByLang || {};
   var modello = modelli[lang] || modelli.it || PY_MSG_DEFAULT[lang] || PY_MSG_DEFAULT.it;
   var notaTxt = nota ? (' ('+nota+')') : '';
-  return modello.replace(/\{nome\}/g, b.guestName||'').replace(/\{importo\}/g, importoTxt).replace(/\{link\}/g, link).replace(/\{nota\}/g, notaTxt);
+  var testo = modello.replace(/\{nome\}/g, b.guestName||'').replace(/\{importo\}/g, importoTxt).replace(/\{link\}/g, link).replace(/\{nota\}/g, notaTxt);
+  if (sumupLink) {
+    var extra = PY_SUMUP_EXTRA[lang] || PY_SUMUP_EXTRA.it;
+    testo += extra.replace(/\{link_sumup\}/g, sumupLink);
+  }
+  return testo;
 }
 function pyApriRichiesta(bookingId){
   var s = DB.getObj('settings', {});
@@ -15593,9 +15604,13 @@ function pyApriRichiesta(bookingId){
         '<input type="text" id="py-nota" placeholder="Es. caparra" oninput="pyRigeneraTesto(\''+b.id+'\')">'+
       '</div>'+
       '<div class="form-group full">'+
+        '<label>Link SumUp (facoltativo — crealo prima dalla tua app SumUp e incollalo qui se vuoi offrire anche questa opzione)</label>'+
+        '<input type="text" id="py-sumup-link" placeholder="https://pay.sumup.com/..." oninput="pyRigeneraTesto(\''+b.id+'\')">'+
+      '</div>'+
+      '<div class="form-group full">'+
         '<label>Messaggio che verrà inviato — puoi modificarlo liberamente prima di mandarlo</label>'+
-        '<textarea id="py-testo" rows="7" style="width:100%">'+(testoIniziale||'').replace(/</g,'&lt;')+'</textarea>'+
-        '<div style="font-size:11px;color:var(--text3);margin-top:3px">Se cambi importo o nota qui sopra, il testo viene rigenerato dal modello (impostabile in Impostazioni → 💳 Pagamenti PayPal) — eventuali modifiche manuali al testo vengono sovrascritte.</div>'+
+        '<textarea id="py-testo" rows="8" style="width:100%">'+(testoIniziale||'').replace(/</g,'&lt;')+'</textarea>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:3px">Se cambi importo, nota o link SumUp qui sopra, il testo viene rigenerato dal modello (impostabile in Impostazioni → 💳 Pagamenti PayPal) — eventuali modifiche manuali al testo vengono sovrascritte.</div>'+
       '</div>'+
     '</div>'+
     '<div style="display:flex;gap:8px;margin-top:14px">'+
@@ -15613,10 +15628,11 @@ function pyLeggiImporto(){
 function pyRigeneraTesto(bookingId){
   var importo = parseFloat(document.getElementById('py-importo')?.value);
   var nota = (document.getElementById('py-nota')?.value || '').trim();
+  var sumupLink = (document.getElementById('py-sumup-link')?.value || '').trim();
   var b = (DB.get('bookings')||[]).find(function(x){ return x.id===bookingId; });
   var ta = document.getElementById('py-testo');
   if (!b || !ta) return;
-  ta.value = (importo && importo>0) ? pyTestoRichiesta(b, importo, nota) : '';
+  ta.value = (importo && importo>0) ? pyTestoRichiesta(b, importo, nota, sumupLink) : '';
 }
 function pySegnaRichiesta(bookingId){
   var bookings = DB.get('bookings') || [];
