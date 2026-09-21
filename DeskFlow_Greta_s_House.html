@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 20/09/2026 · 20:03</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 21/09/2026 · 11:05</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -502,6 +502,7 @@ const DB = {
     if (k==='storicoOspiti' && supabaseReady && _blobsReady['storicoOspiti']) return _blobsCache['storicoOspiti'] || [];
     if (k==='messageTemplates' && supabaseReady && _blobsReady['messageTemplates']) return _blobsCache['messageTemplates'] || [];
     if (k==='listinoAggiustamenti' && supabaseReady && _blobsReady['listinoAggiustamenti']) return _blobsCache['listinoAggiustamenti'] || [];
+    if (k==='listinoPromozioni' && supabaseReady && _blobsReady['listinoPromozioni']) return _blobsCache['listinoPromozioni'] || [];
     if (k==='listinoScostamenti' && supabaseReady && _blobsReady['listinoScostamenti']) return _blobsCache['listinoScostamenti'] || [];
     if (k==='competitorStrutture' && supabaseReady && _blobsReady['competitorStrutture']) return _blobsCache['competitorStrutture'] || [];
     if (k==='competitorPrices' && supabaseReady && _blobsReady['competitorPrices']) return _blobsCache['competitorPrices'] || [];
@@ -529,6 +530,7 @@ const DB = {
     if (k==='storicoOspiti' && supabaseReady && _blobsReady['storicoOspiti']) { _blobsCache['storicoOspiti'] = v; setTimeout(()=>syncBlobToSupabase('storicoOspiti', v),0); return; }
     if (k==='messageTemplates' && supabaseReady && _blobsReady['messageTemplates']) { _blobsCache['messageTemplates'] = v; setTimeout(()=>syncBlobToSupabase('messageTemplates', v),0); return; }
     if (k==='listinoAggiustamenti' && supabaseReady && _blobsReady['listinoAggiustamenti']) { _blobsCache['listinoAggiustamenti'] = v; setTimeout(()=>syncBlobToSupabase('listinoAggiustamenti', v),0); return; }
+    if (k==='listinoPromozioni' && supabaseReady && _blobsReady['listinoPromozioni']) { _blobsCache['listinoPromozioni'] = v; setTimeout(()=>syncBlobToSupabase('listinoPromozioni', v),0); return; }
     if (k==='listinoScostamenti' && supabaseReady && _blobsReady['listinoScostamenti']) { _blobsCache['listinoScostamenti'] = v; setTimeout(()=>syncBlobToSupabase('listinoScostamenti', v),0); return; }
     if (k==='competitorStrutture' && supabaseReady && _blobsReady['competitorStrutture']) { _blobsCache['competitorStrutture'] = v; setTimeout(()=>syncBlobToSupabase('competitorStrutture', v),0); return; }
     if (k==='competitorPrices' && supabaseReady && _blobsReady['competitorPrices']) { _blobsCache['competitorPrices'] = v; setTimeout(()=>syncBlobToSupabase('competitorPrices', v),0); return; }
@@ -949,17 +951,17 @@ async function initSupabase() {
 
     // Impostazioni e Corrispettivi: tabella facoltativa "app_blobs" (un blocco unico di dati per chiave)
     try {
-      const {data:blobs, error:err8} = await supabaseClient.from('app_blobs').select('*').in('key', ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']);
+      const {data:blobs, error:err8} = await supabaseClient.from('app_blobs').select('*').in('key', ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoPromozioni','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']);
       if (err8) throw err8;
       (blobs||[]).forEach(row => { _blobsCache[row.key] = row.data; _blobsReady[row.key] = true; });
       // Se una delle chiavi non esiste ancora su Supabase, la creiamo copiando quella locale attuale
       // (per storicoOspiti/messageTemplates/listinoAggiustamenti/listinoScostamenti/competitorStrutture/
       // competitorPrices: JSON.parse restituisce [] di default, non null, quindi il controllo "local"
       // richiede che l'array abbia almeno un elemento — altrimenti non c'è nulla da migrare)
-      for (const key of ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']) {
+      for (const key of ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoPromozioni','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']) {
         if (!_blobsReady[key]) {
           const raw = localStorage.getItem('pms_'+key);
-          const isArrayKey = (key==='storicoOspiti'||key==='messageTemplates'||key==='listinoAggiustamenti'||key==='listinoScostamenti'||key==='competitorStrutture'||key==='competitorPrices'||key==='blacklist'||key==='extras'||key==='movimenti'||key==='tassaSoggiornoLog'||key==='categoryOrder'||key==='ical_portals');
+          const isArrayKey = (key==='storicoOspiti'||key==='messageTemplates'||key==='listinoAggiustamenti'||key==='listinoPromozioni'||key==='listinoScostamenti'||key==='competitorStrutture'||key==='competitorPrices'||key==='blacklist'||key==='extras'||key==='movimenti'||key==='tassaSoggiornoLog'||key==='categoryOrder'||key==='ical_portals');
           const local = isArrayKey ? (JSON.parse(raw||'[]')) : JSON.parse(raw || 'null');
           const haValore = isArrayKey ? (local && local.length) : local;
           if (haValore) { _blobsCache[key] = local; await supabaseClient.from('app_blobs').upsert({key, data: local}); }
@@ -969,7 +971,7 @@ async function initSupabase() {
       }
     } catch (err8) {
       console.warn('Tabella app_blobs non disponibile — Impostazioni, Corrispettivi, Archivio storico ospiti, variazioni prezzo, scostamenti, Prezzo consigliato, Prezzi concorrenti e portali iCal restano locali su questo PC. Esegui lo script SQL aggiuntivo per attivarlo.', err8);
-      ['settings','corrispettivi','storicoOspiti','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo'].forEach(function(k){ _blobsReady[k] = false; });
+      ['settings','corrispettivi','storicoOspiti','listinoAggiustamenti','listinoPromozioni','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo'].forEach(function(k){ _blobsReady[k] = false; });
     }
 
     // Tempo reale su tutte le tabelle — riattivato dopo l'upgrade a compute Micro (più risorse
@@ -1118,7 +1120,7 @@ function handleQuoteRealtimeChange(payload) {
 }
 function handleBlobRealtimeChange(payload) {
   const key = payload.eventType === 'DELETE' ? payload.old.key : payload.new.key;
-  if (['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo'].indexOf(key) < 0) return;
+  if (['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoPromozioni','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo'].indexOf(key) < 0) return;
   if (payload.eventType === 'DELETE') { delete _blobsCache[key]; }
   else { _blobsCache[key] = payload.new.data; }
   if (key === 'settings') {
@@ -1481,7 +1483,7 @@ function syncBlobToSupabase(key, value) {
 // soggiorno minimo/chiusure, variazioni/scostamenti Listino, dati Prezzo consigliato/concorrenti e
 // portali iCal. Ora l'elenco copre tutte le categorie che l'app usa davvero (stesse riconosciute dalla
 // sincronizzazione Supabase in DB.get/set/getObj/setObj più sopra).
-const PMS_CHIAVI_ARRAY = ['rooms','bookings','guests','listino','tariffe','quotes','richiestePreventivo','roomTypeInfo','siteContent','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog'];
+const PMS_CHIAVI_ARRAY = ['rooms','bookings','guests','listino','tariffe','quotes','richiestePreventivo','roomTypeInfo','siteContent','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoPromozioni','listinoScostamenti','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog'];
 const PMS_CHIAVI_OBJ = ['settings','corrispettivi','revenueConfig','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals'];
 function raccogliDatiCompletiPerBackup() {
   const backup = {};
@@ -1999,8 +2001,8 @@ async function refreshDatiCorrenti() {
         _roomBlocksCache = {};
         r.forEach(b => { _roomBlocksCache[b.room_id+'|'+b.block_date] = true; });
       }));
-      if (_blobsReady['settings'] || _blobsReady['corrispettivi'] || _blobsReady['storicoOspiti'] || _blobsReady['messageTemplates'] || _blobsReady['listinoAggiustamenti'] || _blobsReady['listinoScostamenti'] || _blobsReady['revenueConfig'] || _blobsReady['competitorStrutture'] || _blobsReady['competitorPrices'] || _blobsReady['blacklist'] || _blobsReady['extras'] || _blobsReady['movimenti'] || _blobsReady['tassaSoggiornoLog'] || _blobsReady['categoryOrder'] || _blobsReady['groupColors'] || _blobsReady['hkData'] || _blobsReady['regoleTipo'] || _blobsReady['tassaSoggiornoDettaglio'] || _blobsReady['ical_portals'] || _blobsReady['guidaOspiti']) {
-        jobs.push(supabaseClient.from('app_blobs').select('*').in('key', ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']).then(r => {
+      if (_blobsReady['settings'] || _blobsReady['corrispettivi'] || _blobsReady['storicoOspiti'] || _blobsReady['messageTemplates'] || _blobsReady['listinoAggiustamenti'] || _blobsReady['listinoPromozioni'] || _blobsReady['listinoScostamenti'] || _blobsReady['revenueConfig'] || _blobsReady['competitorStrutture'] || _blobsReady['competitorPrices'] || _blobsReady['blacklist'] || _blobsReady['extras'] || _blobsReady['movimenti'] || _blobsReady['tassaSoggiornoLog'] || _blobsReady['categoryOrder'] || _blobsReady['groupColors'] || _blobsReady['hkData'] || _blobsReady['regoleTipo'] || _blobsReady['tassaSoggiornoDettaglio'] || _blobsReady['ical_portals'] || _blobsReady['guidaOspiti']) {
+        jobs.push(supabaseClient.from('app_blobs').select('*').in('key', ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoPromozioni','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']).then(r => {
           (r.data||[]).forEach(row => { _blobsCache[row.key] = row.data; });
         }));
       }
@@ -27610,6 +27612,7 @@ if(lstSelFrom&&lstSelTo){
     '<select onchange="lstJumpYear(this.value)" style="font-size:11px;padding:2px 4px;border-radius:4px;border:.5px solid var(--border2);background:var(--surface);width:62px">'+[...Array(4)].map(function(_,i){var yy=new Date().getFullYear()-1+i;return '<option value="'+yy+'"'+(yy===startD.getFullYear()?' selected':'')+'>'+yy+'</option>';}).join('')+'</select>'+
     (lstIsDerivata ? '' : '<button class="btn btn-primary btn-sm" onclick="lstSaveAll()">Salva</button>')+
     '<button class="btn btn-sm" style="background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700" onclick="lstApplyPeriodo()">🚀 Aggiornamento Massivo</button>'+
+    '<button class="btn btn-sm" style="background:#e11d48;color:#fff;border-color:#e11d48;font-weight:700" onclick="promoApriModal()" title="Applica uno sconto % a un periodo di giorni scelto da te — chi prenota in quei giorni lo riceve automaticamente">🎉 Promo periodo</button>'+
     '<label class="btn btn-sm" style="cursor:pointer" title="Carica un file Excel con colonne Tipologia, Data, Prezzo per aggiornare tante date insieme">⬆ Importa da Excel<input type="file" accept=".xlsx,.csv" onchange="importaListinoXLSX(event)" style="display:none"></label>'+
     '<button class="btn btn-sm" onclick="esportaListinoXLSX()" title="Scarica i prezzi del periodo visualizzato in un file Excel — stesse colonne richieste dall\'importazione">⬇ Esporta Excel</button>'+
     '</div>'+
@@ -27896,6 +27899,136 @@ function applyAggiustamentoGiorno(ds, valStr) {
     if (idx>=0) arr[idx].valore=v; else arr.push({data:ds, valore:v});
   }
   DB.set('listinoAggiustamenti', arr);
+  renderListino();
+}
+
+// ============================================================
+// PROMO PERIODO — sconto % su un intervallo di giorni scelto da Gian.
+// Riusa esattamente lo stesso meccanismo della "Variazione manuale ± %"
+// giorno-per-giorno già esistente (listinoAggiustamenti + applyAggiustamentoGiorno),
+// applicandolo in un colpo solo a tutti i giorni del periodo — così lo sconto
+// vale automaticamente OVUNQUE il prezzo viene calcolato (Calendario, nuova
+// prenotazione, preventivi, sync prezzi Hostex). Le promo attive sono anche
+// salvate come elenco a parte (listinoPromozioni) solo per poterle vedere/
+// rimuovere per nome invece che giorno per giorno.
+// ============================================================
+function promoElenco(){ return DB.get('listinoPromozioni')||[]; }
+function promoSalvaElenco(l){ DB.set('listinoPromozioni', l); }
+
+function promoApriModal(){
+  var promos = promoElenco().filter(function(p){ return p.al>=today(); }).sort(function(a,b){ return a.dal.localeCompare(b.dal); });
+  showModal('🎉 Promo periodo',
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:14px">Scegli un periodo di giorni e uno sconto. La promo funziona come un pacchetto: il soggiorno minimo per chi fa check-in in quei giorni viene impostato automaticamente alla durata dell\'intero periodo — non si potrà prenotare solo qualche notte di quel blocco, va preso tutto il periodo (così lo sconto si applica sempre in modo corretto). Vale ovunque nel programma (Calendario, nuova prenotazione, preventivi) e viene inviata subito anche a Booking.com/Airbnb tramite Hostex.</div>'+
+    '<div class="form-grid">'+
+      '<div class="form-group">'+
+        '<label>Nome promo (facoltativo)</label>'+
+        '<input type="text" id="promo-nome" placeholder="Es. Offerta settembre">'+
+      '</div>'+
+      '<div class="form-group">'+
+        '<label>Sconto %</label>'+
+        '<input type="number" id="promo-sconto" min="1" max="90" step="1" placeholder="Es. 15">'+
+      '</div>'+
+      '<div class="form-group">'+
+        '<label>Dal</label>'+
+        '<input type="date" id="promo-dal" value="'+today()+'">'+
+      '</div>'+
+      '<div class="form-group">'+
+        '<label>Al</label>'+
+        '<input type="date" id="promo-al" value="'+addDays(today(),6)+'">'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:flex-end;margin-top:10px">'+
+      '<button class="btn btn-primary" onclick="promoSalva()">Applica sconto al periodo</button>'+
+    '</div>'+
+    (promos.length ? (
+      '<div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border2)">'+
+      '<div style="font-weight:700;font-size:12.5px;margin-bottom:8px">Promo attive</div>'+
+      promos.map(function(p){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border:.5px solid var(--border);border-radius:8px;margin-bottom:6px">'+
+          '<div><div style="font-weight:700;font-size:13px">'+(p.nome||'Senza nome')+' — sconto '+p.sconto+'%</div>'+
+          '<div style="font-size:11.5px;color:var(--text3)">'+fmtDate(p.dal)+' → '+fmtDate(p.al)+' · min. '+(p.minNotti||'?')+' nott'+((p.minNotti===1)?'e':'i')+'</div></div>'+
+          '<button class="btn btn-sm" style="color:var(--red)" onclick="promoRimuovi(\''+p.id+'\')">✕ Rimuovi</button>'+
+          '</div>';
+      }).join('')+
+      '</div>'
+    ) : '')+
+    '</div>',
+    '<button class="btn" onclick="closeModal()">Chiudi</button>'
+  );
+}
+
+function promoSalva(){
+  var nome = (document.getElementById('promo-nome')?.value||'').trim();
+  var sconto = parseFloat(document.getElementById('promo-sconto')?.value);
+  var dal = document.getElementById('promo-dal')?.value;
+  var al = document.getElementById('promo-al')?.value;
+  if (!sconto || sconto<=0) { showToast('Inserisci uno sconto % valido'); return; }
+  if (!dal || !al || al<dal) { showToast('Controlla le date del periodo'); return; }
+  // Avvisa se qualche giorno del periodo ha già una variazione manuale impostata a mano prima
+  // d'ora (single-day) — verrebbe sovrascritta dalla promo.
+  var giaImpostati = [];
+  for (var ds=dal; ds<=al; ds=addDays(ds,1)) {
+    var g = getAggiustamentoGiorno(ds);
+    if (g) giaImpostati.push(ds);
+    if (ds===al) break;
+  }
+  if (giaImpostati.length && !confirm('Attenzione: '+giaImpostati.length+' giorno/i nel periodo hanno già una variazione manuale impostata (nella riga "Variazione manuale" del Listino) — verrà sovrascritta con lo sconto della promo. Continuare?')) return;
+
+  var valore = -Math.abs(sconto); // sconto = variazione negativa
+  for (var d=dal; d<=al; d=addDays(d,1)) {
+    applyAggiustamentoGiorno(d, String(valore));
+    if (d===al) break;
+  }
+  // Soggiorno minimo = intera durata della promo: chi fa check-in in uno di questi giorni deve
+  // prenotare tutto il periodo, non solo qualche notte — così lo sconto vale sempre sull'intero
+  // blocco di giorni impostato, mai per un soggiorno più corto. Applicato a tutte le tipologie
+  // di camera (su Greta's House ce n'è comunque una sola), stesso meccanismo già usato dal
+  // Soggiorno minimo del Listino — quindi arriva in automatico anche su Booking.com/Airbnb.
+  var giorniPromo = nights(dal, al) + 1;
+  var tipologie = Array.from(new Set((DB.get('rooms')||[]).filter(function(r){ return r.status==='disponibile'; }).map(function(r){ return r.type||'Senza tipologia'; })));
+  var r = getRegoleTipo();
+  tipologie.forEach(function(tipo){
+    if (!r.minNotti[tipo]) r.minNotti[tipo] = {};
+    for (var dd=dal; dd<=al; dd=addDays(dd,1)) {
+      r.minNotti[tipo][dd] = giorniPromo;
+      if (dd===al) break;
+    }
+  });
+  saveRegoleTipo(r);
+  if (typeof avvisaHostexRestrizioniSubito === 'function') avvisaHostexRestrizioniSubito();
+  if (typeof avvisaHostexPrezziSubito === 'function') avvisaHostexPrezziSubito();
+
+  var promos = promoElenco();
+  promos.push({id:'promo_'+Date.now(), nome: nome||('Sconto '+sconto+'%'), dal:dal, al:al, sconto:sconto, minNotti:giorniPromo, tipologie:tipologie});
+  promoSalvaElenco(promos);
+  showToast('✅ Promo applicata dal '+fmtDate(dal)+' al '+fmtDate(al)+' — soggiorno minimo '+giorniPromo+' nott'+(giorniPromo===1?'e':'i'));
+  closeModal();
+  renderListino();
+}
+
+function promoRimuovi(promoId){
+  var promos = promoElenco();
+  var p = promos.find(function(x){ return x.id===promoId; });
+  if (!p) return;
+  if (!confirm('Rimuovere la promo "'+(p.nome||'')+'"? Lo sconto e il soggiorno minimo verranno tolti da tutti i giorni del periodo ('+fmtDate(p.dal)+' → '+fmtDate(p.al)+').')) return;
+  for (var ds=p.dal; ds<=p.al; ds=addDays(ds,1)) {
+    applyAggiustamentoGiorno(ds, '0');
+    if (ds===p.al) break;
+  }
+  var r = getRegoleTipo();
+  (p.tipologie||[]).forEach(function(tipo){
+    if (!r.minNotti[tipo]) return;
+    for (var dd=p.dal; dd<=p.al; dd=addDays(dd,1)) {
+      delete r.minNotti[tipo][dd];
+      if (dd===p.al) break;
+    }
+  });
+  saveRegoleTipo(r);
+  if (typeof avvisaHostexRestrizioniSubito === 'function') avvisaHostexRestrizioniSubito();
+  if (typeof avvisaHostexPrezziSubito === 'function') avvisaHostexPrezziSubito();
+  promoSalvaElenco(promos.filter(function(x){ return x.id!==promoId; }));
+  showToast('Promo rimossa');
+  promoApriModal();
   renderListino();
 }
 
