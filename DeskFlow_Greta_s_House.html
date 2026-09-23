@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 21/09/2026 · 11:05</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 22/09/2026 · 22:02</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -15949,9 +15949,9 @@ function utentiRimuovi(email){
 }
 
 function renderPrenotazioni() {
-  // Sort by check-in ASC, then room name
+  // Sort by check-in DESC (più recenti in cima), poi camera
   const allBookings = DB.get('bookings').slice().sort((a, b) => {
-    const byDate = a.checkin.localeCompare(b.checkin);
+    const byDate = b.checkin.localeCompare(a.checkin);
     if (byDate !== 0) return byDate;
     return (a.roomName||'').localeCompare(b.roomName||'', 'it', {numeric:true});
   });
@@ -16099,7 +16099,7 @@ function renderPrenotazioni() {
           : `<table class="tabella-compatta">
               <thead>
                 <tr>
-                  <th>Check-in ↑</th>
+                  <th>Check-in ↓</th>
                   <th>Check-out</th>
                   <th>Inserita il</th>
                   <th>Camera</th>
@@ -28228,9 +28228,16 @@ function apriGeneraXmlSpot() {
     +'<p style="color:var(--text3);font-size:12px">Vengono inclusi solo gli arrivi con dati ospite già compilati (check-in fatto). Chi non ha ancora fatto check-in viene segnalato e saltato.</p>'
     +'</div>',
     '<button class="btn" onclick="closeModal()">Annulla</button>'
-    +'<button class="btn btn-primary" onclick="eseguiGeneraXmlSpot(\''+dal+'\',\''+al+'\')">📥 Genera e scarica</button>'
+    +'<button class="btn btn-primary" onclick="eseguiGeneraXmlSpot(\''+dal+'\',\''+al+'\')">📥 Genera, scarica e apri SPOT</button>'
   );
 }
+
+// SPOT (DMS Puglia) non offre un vero invio automatico via webservice come Alloggiati Web — non è
+// una limitazione di DeskFlow, è il portale regionale stesso a non metterlo a disposizione (nessun
+// gestionale, nemmeno quelli commerciali, riesce a inviare in automatico). Questo è il massimo
+// avvicinamento possibile: un click genera e scarica il file XML E apre subito il portale, così i
+// due passaggi (scarica + carica) restano vicini nel tempo invece di doverli fare in momenti diversi.
+const SPOT_ONLINE_URL = 'https://www.dms.puglia.it/';
 
 function eseguiGeneraXmlSpot(dal, al) {
   const r = generaXmlSpot(dal, al);
@@ -28241,10 +28248,11 @@ function eseguiGeneraXmlSpot(dal, al) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   closeModal();
+  window.open(SPOT_ONLINE_URL, '_blank');
   if (r.nonRisolti.length) {
     alert('File generato — ma ATTENZIONE, questi ospiti/arrivi NON sono stati inclusi o hanno dati incompleti:\n\n'+r.nonRisolti.join('\n')+'\n\nCorreggili in anagrafica/check-in e rigenera il file prima di caricarlo su SPOT.');
   } else {
-    showToast('File XML generato — carica ora su SPOT Online (dms.puglia.it)');
+    showToast('File XML scaricato — si è aperto anche SPOT Online, accedi e carica il file da lì (SPOT Online → "caricamento file XML")');
   }
 }
 
@@ -28328,7 +28336,8 @@ function renderAdempimenti() {
   document.getElementById('page-adempimenti').innerHTML =
     '<div class="page-header"><div><div class="page-title">📋 Adempimenti</div>'+
     '<div class="page-subtitle">Alloggiati Web e ISTAT</div></div>'+
-    '<button class="btn btn-sm" style="background:#00854a;color:#fff;border-color:#00854a" onclick="apriGeneraXmlSpot()" title="Genera il file XML da caricare su SPOT (DMS Puglia) per il periodo selezionato">🇮🇹 Genera XML per SPOT (Puglia)</button>'+
+    '<button class="btn btn-sm" style="background:#00854a;color:#fff;border-color:#00854a" onclick="apriGeneraXmlSpot()" title="Genera il file XML da caricare su SPOT (DMS Puglia) per il periodo selezionato, e apre subito anche il portale SPOT">🇮🇹 Genera XML per SPOT (Puglia)</button>'+
+    '<button class="btn btn-sm" style="background:#fff;color:#00854a;border-color:#00854a" onclick="window.open(SPOT_ONLINE_URL,\'_blank\')" title="Apre il portale SPOT Online (dms.puglia.it) in una nuova scheda, senza generare il file">🌐 Apri SPOT Online</button>'+
     '<button class="btn btn-sm" onclick="navigate(\'impostazioni\')">⚙ Credenziali</button></div>'+
     '<div class="page-content">'+
     warnHtml+
