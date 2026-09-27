@@ -523,6 +523,8 @@ function inviaRichiesta(checkin, checkout, adults, children, roomName) {
       '<h2>Richiedi disponibilità</h2>' +
       '<div class="rowinfo"><span>Check-in</span><span>' + fmtIT(checkin) + '</span></div>' +
       '<div class="rowinfo"><span>Check-out</span><span>' + fmtIT(checkout) + '</span></div>' +
+      '<div class="rowinfo"><span>Notti</span><span>' + notti(checkin, checkout) + '</span></div>' +
+      '<div class="rowinfo"><span>Persone</span><span>' + adults + ' adult' + (adults===1?'o':'i') + (children ? ' + ' + children + ' bambin' + (children===1?'o':'i') : '') + '</span></div>' +
       (roomName ? '<div class="rowinfo"><span>Unita</span><span><b>' + roomName + '</b></span></div>' : '') +
       '<div class="field"><label>Nome *</label><input type="text" id="r-nome" required></div>' +
       '<div class="field"><label>Cognome *</label><input type="text" id="r-cognome" required></div>' +
