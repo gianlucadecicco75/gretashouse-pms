@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 27/09/2026 · 18:59</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 27/09/2026 · 20:56</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -30142,44 +30142,66 @@ var condLangTab = 'it';
 function renderCondizioni() {
   const s = DB.getObj('settings', {});
   const en = condLangTab === 'en';
-  const sfx = en ? 'EN' : '';
+  const fr = condLangTab === 'fr';
+  const sfx = en ? 'EN' : (fr ? 'FR' : '');
+  const L = en
+    ? {orari:'Check-in / check-out times', orariPh:'E.g. Check-in from 2:00 PM to 8:00 PM. Check-out by 10:00 AM.',
+       cancel:'Cancellation policy', cancelPh:'E.g. Free cancellation up to 7 days before arrival.',
+       pag:'Payment terms', pagPh:'E.g. A 30% deposit is required upon confirmation.',
+       regole:'House rules', regolePh:'E.g. Smoking is not allowed in the rooms.',
+       altro:'Other conditions', altroPh:'Any other notes or conditions to communicate to the guest.',
+       nota:'English version, used when you choose English as the message language when sending a quote or confirmation. A section left blank here simply won\'t appear in the English message.'}
+    : fr
+    ? {orari:'Horaires check-in / check-out', orariPh:'Ex. Check-in de 14h00 à 20h00. Check-out avant 10h00.',
+       cancel:'Politique d\'annulation', cancelPh:'Ex. Annulation gratuite jusqu\'à 7 jours avant l\'arrivée.',
+       pag:'Conditions de paiement', pagPh:'Ex. Un acompte de 30% est requis à la confirmation.',
+       regole:'Règlement intérieur', regolePh:'Ex. Il est interdit de fumer dans les chambres.',
+       altro:'Autres conditions', altroPh:'Toute autre note ou condition à communiquer au client.',
+       nota:'Version française, utilisée quand tu choisis le français comme langue du message en envoyant un devis ou une confirmation. Une section laissée vide ici n\'apparaîtra simplement pas dans le message en français.'}
+    : {orari:'Orari di check-in / check-out', orariPh:'Es. Check-in dalle 14:00 alle 20:00. Check-out entro le 10:00.',
+       cancel:'Politica di cancellazione', cancelPh:'Es. Cancellazione gratuita fino a 7 giorni prima dell\'arrivo.',
+       pag:'Termini di pagamento', pagPh:'Es. È richiesta una caparra del 30% alla conferma.',
+       regole:'Regolamento interno / regole della casa', regolePh:'Es. Non è consentito fumare nelle camere.',
+       altro:'Altre condizioni', altroPh:'Eventuali altre note o condizioni da comunicare al cliente.',
+       nota:''};
   document.getElementById('page-condizioni').innerHTML = `
     <div class="page-header">
-      <div><div class="page-title">Condizioni della struttura</div><div class="page-subtitle">Verranno proposte come allegato testuale nei preventivi e nelle conferme inviate via email o WhatsApp</div></div>
+      <div><div class="page-title">Condizioni della struttura</div><div class="page-subtitle">Verranno proposte come allegato testuale nei preventivi e nelle conferme, e mostrate sul sito di prenotazione, nella lingua corrispondente</div></div>
       <button class="btn btn-primary" onclick="saveCondizioni()">💾 Salva condizioni</button>
     </div>
     <div class="page-content">
       <div style="display:flex;gap:8px;margin-bottom:14px">
-        <button class="btn btn-sm${!en?' btn-primary':''}" onclick="condLangTab='it'; renderCondizioni()">🇮🇹 Italiano</button>
+        <button class="btn btn-sm${!en&&!fr?' btn-primary':''}" onclick="condLangTab='it'; renderCondizioni()">🇮🇹 Italiano</button>
         <button class="btn btn-sm${en?' btn-primary':''}" onclick="condLangTab='en'; renderCondizioni()">🇬🇧 English</button>
+        <button class="btn btn-sm${fr?' btn-primary':''}" onclick="condLangTab='fr'; renderCondizioni()">🇫🇷 Français</button>
       </div>
-      ${en ? '<div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Versione inglese, usata quando scegli English come lingua del messaggio inviando un preventivo o una conferma. Una sezione lasciata vuota qui semplicemente non comparirà nel messaggio in inglese.</div>' : ''}
+      ${L.nota ? '<div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">'+L.nota+'</div>' : ''}
       <div class="card">
         <div class="form-grid">
           <div class="form-group full">
-            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${en?'Check-in / check-out times':'Orari di check-in / check-out'}</label>
-            ${richTextFieldHTML('cond-orari'+sfx, s['condOrari'+sfx], en?'E.g. Check-in from 2:00 PM to 8:00 PM. Check-out by 10:00 AM.':'Es. Check-in dalle 14:00 alle 20:00. Check-out entro le 10:00.')}
+            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${L.orari}</label>
+            ${richTextFieldHTML('cond-orari'+sfx, s['condOrari'+sfx], L.orariPh)}
           </div>
           <div class="form-group full">
-            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${en?'Cancellation policy':'Politica di cancellazione'}</label>
-            ${richTextFieldHTML('cond-cancellazione'+sfx, s['condCancellazione'+sfx], en?'E.g. Free cancellation up to 7 days before arrival.':'Es. Cancellazione gratuita fino a 7 giorni prima dell\'arrivo.')}
+            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${L.cancel}</label>
+            ${richTextFieldHTML('cond-cancellazione'+sfx, s['condCancellazione'+sfx], L.cancelPh)}
           </div>
           <div class="form-group full">
-            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${en?'Payment terms':'Termini di pagamento'}</label>
-            ${richTextFieldHTML('cond-pagamento'+sfx, s['condPagamento'+sfx], en?'E.g. A 30% deposit is required upon confirmation.':'Es. È richiesta una caparra del 30% alla conferma.')}
+            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${L.pag}</label>
+            ${richTextFieldHTML('cond-pagamento'+sfx, s['condPagamento'+sfx], L.pagPh)}
           </div>
           <div class="form-group full">
-            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${en?'House rules':'Regolamento interno / regole della casa'}</label>
-            ${richTextFieldHTML('cond-regole'+sfx, s['condRegole'+sfx], en?'E.g. Smoking is not allowed in the rooms.':'Es. Non è consentito fumare nelle camere.')}
+            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${L.regole}</label>
+            ${richTextFieldHTML('cond-regole'+sfx, s['condRegole'+sfx], L.regolePh)}
           </div>
           <div class="form-group full">
-            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${en?'Other conditions':'Altre condizioni'}</label>
-            ${richTextFieldHTML('cond-altro'+sfx, s['condAltro'+sfx], en?'Any other notes or conditions to communicate to the guest.':'Eventuali altre note o condizioni da comunicare al cliente.')}
+            <label style="font-size:15px;font-weight:800;color:var(--text1);text-transform:none;letter-spacing:0">${L.altro}</label>
+            ${richTextFieldHTML('cond-altro'+sfx, s['condAltro'+sfx], L.altroPh)}
           </div>
         </div>
         <div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.5">
-          Seleziona del testo e usa <strong>B</strong> per il grassetto o un quadratino colorato per colorarlo. Le sezioni lasciate vuote non vengono incluse nei messaggi.<br>
-          Grassetto e colori si vedono per intero nell'anteprima qui sotto e negli invii che supportano la formattazione. Su WhatsApp il grassetto viene convertito automaticamente (*testo*), i colori non sono supportati dall'app. Nel client di posta predefinito il testo viene inviato semplice, senza formattazione, perché quel canale non supporta l'HTML.
+          Seleziona del testo e usa <strong>B</strong> per il grassetto o un quadratino colorato per colorarlo. Le sezioni lasciate vuote non vengono incluse nei messaggi né sul sito.<br>
+          Grassetto e colori si vedono per intero nell'anteprima qui sotto e negli invii che supportano la formattazione. Su WhatsApp il grassetto viene convertito automaticamente (*testo*), i colori non sono supportati dall'app. Nel client di posta predefinito il testo viene inviato semplice, senza formattazione, perché quel canale non supporta l'HTML. Sul sito di prenotazione, se una lingua (Inglese/Francese) è lasciata vuota, viene mostrata automaticamente la versione italiana.
         </div>
       </div>
       <div class="card">
@@ -30191,7 +30213,7 @@ function renderCondizioni() {
 
 function saveCondizioni() {
   const s = DB.getObj('settings', {});
-  const sfx = condLangTab === 'en' ? 'EN' : '';
+  const sfx = condLangTab === 'en' ? 'EN' : (condLangTab === 'fr' ? 'FR' : '');
   s['condOrari'+sfx] = document.getElementById('cond-orari'+sfx).innerHTML.trim();
   s['condCancellazione'+sfx] = document.getElementById('cond-cancellazione'+sfx).innerHTML.trim();
   s['condPagamento'+sfx] = document.getElementById('cond-pagamento'+sfx).innerHTML.trim();
@@ -30275,18 +30297,19 @@ function condHtmlToWhatsapp(html) {
 function buildCondizioniText(format, lang) {
   format = format || 'plain';
   const en = lang === 'en';
-  const sfx = en ? 'EN' : '';
+  const fr = lang === 'fr';
+  const sfx = en ? 'EN' : (fr ? 'FR' : '');
   const s = DB.getObj('settings', {});
   const sections = [
-    [en?'Check-in / Check-out':'Check-in / Check-out', s['condOrari'+sfx]],
-    [en?'Cancellation policy':'Politica di cancellazione', s['condCancellazione'+sfx]],
-    [en?'Payment terms':'Termini di pagamento', s['condPagamento'+sfx]],
-    [en?'House rules':'Regolamento interno', s['condRegole'+sfx]],
-    [en?'Other conditions':'Altre condizioni', s['condAltro'+sfx]]
+    [en?'Check-in / Check-out':(fr?'Check-in / Check-out':'Check-in / Check-out'), s['condOrari'+sfx]],
+    [en?'Cancellation policy':(fr?"Politique d'annulation":'Politica di cancellazione'), s['condCancellazione'+sfx]],
+    [en?'Payment terms':(fr?'Conditions de paiement':'Termini di pagamento'), s['condPagamento'+sfx]],
+    [en?'House rules':(fr?'Règlement intérieur':'Regolamento interno'), s['condRegole'+sfx]],
+    [en?'Other conditions':(fr?'Autres conditions':'Altre condizioni'), s['condAltro'+sfx]]
   ].filter(([,v]) => condStrip(v));
   if (!sections.length) return '';
 
-  const titolo = en ? 'PROPERTY CONDITIONS' : 'CONDIZIONI DELLA STRUTTURA';
+  const titolo = en ? 'PROPERTY CONDITIONS' : (fr ? "CONDITIONS DE L'ÉTABLISSEMENT" : 'CONDIZIONI DELLA STRUTTURA');
   if (format === 'html') {
     return '<div><strong>'+titolo+'</strong><br><br>'
       + sections.map(([title,v]) => '<strong>'+title.toUpperCase()+'</strong><br>'+condReflowParagraphs(v).join('<br><br>')).join('<br><br>')
@@ -30300,7 +30323,7 @@ function buildCondizioniText(format, lang) {
     + sections.map(([title,v]) => title.toUpperCase()+'\n'+condHtmlToPlainNormalizzato(v)).join('\n\n');
 }
 function hasCondizioni(lang) {
-  const sfx = lang === 'en' ? 'EN' : '';
+  const sfx = lang === 'en' ? 'EN' : (lang === 'fr' ? 'FR' : '');
   const s = DB.getObj('settings', {});
   return !!(condStrip(s['condOrari'+sfx]) || condStrip(s['condCancellazione'+sfx]) || condStrip(s['condPagamento'+sfx]) || condStrip(s['condRegole'+sfx]) || condStrip(s['condAltro'+sfx]));
 }

@@ -87,6 +87,15 @@
   .lang-switch { position:absolute; top:14px; right:16px; display:flex; gap:4px; z-index:3; }
   .lang-switch a { font-size:11px; font-weight:700; color:#8a7a77; text-decoration:none; padding:3px 6px; border-radius:5px; }
   .lang-switch a.active { background:var(--accent); color:#fff; }
+
+  .cond-box { background:#fff; border-radius:16px; padding:20px 22px; margin-top:22px; box-shadow:0 1px 3px rgba(0,0,0,.04); border:1px solid #eee0dd; flex:1 1 100%; width:100%; }
+  .cond-box h2 { font-size:16px; margin:0 0 16px; color:var(--accent); }
+  .cond-section { margin-bottom:16px; }
+  .cond-section:last-child { margin-bottom:0; }
+  .cond-section .cond-title { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; color:#6b5b58; margin-bottom:5px; }
+  .cond-section .cond-body { font-size:13.5px; color:#3a3230; line-height:1.6; }
+  .cond-section .cond-body div, .cond-section .cond-body p { margin:0 0 6px; }
+  .cond-section .cond-body div:last-child, .cond-section .cond-body p:last-child { margin-bottom:0; }
 </style>
 </head>
 <body>
@@ -115,6 +124,8 @@
   </div>
 
   <div class="results" id="results"></div>
+
+  <div class="cond-box" id="cond-box" style="display:none"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -201,7 +212,13 @@ var I18N = {
     emailRichiestaSubject: "Richiesta ricevuta - Greta's House",
     emailRichiestaBody: function(nome, ci, co, ospiti, unita){ return 'Gentile ' + nome + ',\n\nAbbiamo ricevuto la tua richiesta di disponibilità:\n\nCheck-in: ' + ci + '\nCheck-out: ' + co + '\nOspiti: ' + ospiti + (unita?'\nUnita: '+unita:'') + '\n\nTi risponderemo al più presto per confermare.\n\nCordiali saluti,\nGreta\'s House'; },
     emailPrenotConfermataSubject: "Prenotazione confermata - Greta's House",
-    emailPrenotConfermataBody: function(nome, unita, ci, co, tot){ return 'Gentile '+nome+',\n\nLa ringraziamo per la prenotazione presso Greta\'s House.\n\nUnita: '+unita+'\nCheck-in: '+ci+'\nCheck-out: '+co+'\nTotale: EUR '+tot+'\n\nLa contatteremo presto per i dettagli del check-in.\n\nCordiali saluti,\nGreta\'s House'; }
+    emailPrenotConfermataBody: function(nome, unita, ci, co, tot){ return 'Gentile '+nome+',\n\nLa ringraziamo per la prenotazione presso Greta\'s House.\n\nUnita: '+unita+'\nCheck-in: '+ci+'\nCheck-out: '+co+'\nTotale: EUR '+tot+'\n\nLa contatteremo presto per i dettagli del check-in.\n\nCordiali saluti,\nGreta\'s House'; },
+    condizioniTitolo: 'Condizioni della struttura',
+    condOrari: 'Check-in / Check-out',
+    condCancellazione: 'Politica di cancellazione',
+    condPagamento: 'Termini di pagamento',
+    condRegole: 'Regolamento interno',
+    condAltro: 'Altre condizioni'
   },
   en: {
     pageTitle: "Book — Greta's House",
@@ -265,7 +282,13 @@ var I18N = {
     emailRichiestaSubject: "Request received - Greta's House",
     emailRichiestaBody: function(nome, ci, co, ospiti, unita){ return 'Dear ' + nome + ',\n\nWe have received your availability request:\n\nCheck-in: ' + ci + '\nCheck-out: ' + co + '\nGuests: ' + ospiti + (unita?'\nUnit: '+unita:'') + '\n\nWe will get back to you shortly to confirm.\n\nBest regards,\nGreta\'s House'; },
     emailPrenotConfermataSubject: "Booking confirmed - Greta's House",
-    emailPrenotConfermataBody: function(nome, unita, ci, co, tot){ return 'Dear '+nome+',\n\nThank you for your booking at Greta\'s House.\n\nUnit: '+unita+'\nCheck-in: '+ci+'\nCheck-out: '+co+'\nTotal: EUR '+tot+'\n\nWe will contact you soon with check-in details.\n\nBest regards,\nGreta\'s House'; }
+    emailPrenotConfermataBody: function(nome, unita, ci, co, tot){ return 'Dear '+nome+',\n\nThank you for your booking at Greta\'s House.\n\nUnit: '+unita+'\nCheck-in: '+ci+'\nCheck-out: '+co+'\nTotal: EUR '+tot+'\n\nWe will contact you soon with check-in details.\n\nBest regards,\nGreta\'s House'; },
+    condizioniTitolo: 'Property conditions',
+    condOrari: 'Check-in / Check-out',
+    condCancellazione: 'Cancellation policy',
+    condPagamento: 'Payment terms',
+    condRegole: 'House rules',
+    condAltro: 'Other conditions'
   },
   fr: {
     pageTitle: "Réserver — Greta's House",
@@ -329,7 +352,13 @@ var I18N = {
     emailRichiestaSubject: "Demande reçue - Greta's House",
     emailRichiestaBody: function(nome, ci, co, ospiti, unita){ return 'Cher/Chère ' + nome + ',\n\nNous avons bien reçu votre demande de disponibilité :\n\nArrivée : ' + ci + '\nDépart : ' + co + '\nPersonnes : ' + ospiti + (unita?'\nUnité : '+unita:'') + '\n\nNous vous répondrons rapidement pour confirmer.\n\nCordialement,\nGreta\'s House'; },
     emailPrenotConfermataSubject: "Réservation confirmée - Greta's House",
-    emailPrenotConfermataBody: function(nome, unita, ci, co, tot){ return 'Cher/Chère '+nome+',\n\nNous vous remercions pour votre réservation chez Greta\'s House.\n\nUnité : '+unita+'\nArrivée : '+ci+'\nDépart : '+co+'\nTotal : EUR '+tot+'\n\nNous vous contacterons prochainement pour les détails de l\'arrivée.\n\nCordialement,\nGreta\'s House'; }
+    emailPrenotConfermataBody: function(nome, unita, ci, co, tot){ return 'Cher/Chère '+nome+',\n\nNous vous remercions pour votre réservation chez Greta\'s House.\n\nUnité : '+unita+'\nArrivée : '+ci+'\nDépart : '+co+'\nTotal : EUR '+tot+'\n\nNous vous contacterons prochainement pour les détails de l\'arrivée.\n\nCordialement,\nGreta\'s House'; },
+    condizioniTitolo: "Conditions de l'établissement",
+    condOrari: 'Check-in / Check-out',
+    condCancellazione: "Politique d'annulation",
+    condPagamento: 'Conditions de paiement',
+    condRegole: 'Règlement intérieur',
+    condAltro: 'Autres conditions'
   }
 };
 var L = I18N[LANG];
@@ -436,6 +465,46 @@ var calRooms = null, calBookings = null, calBlocks = null;
 function fmtISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function fmtIT(iso){ var p = iso.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
 
+// ============================================================
+// CONDIZIONI DELLA STRUTTURA — lette dalle stesse impostazioni compilate nel PMS
+// (pagina "📜 Condizioni"), mostrate qui nella lingua scelta sul sito. Se una sezione non è
+// stata tradotta (Inglese/Francese lasciati vuoti), viene mostrata automaticamente la versione
+// italiana per quella sola sezione, così non resta mai un buco nella pagina.
+// ============================================================
+function condStripSito(html) { return (html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim(); }
+
+function buildCondizioniSitoHtml(settings) {
+  var sfx = LANG === 'en' ? 'EN' : (LANG === 'fr' ? 'FR' : '');
+  function campo(chiave) {
+    var v = settings[chiave + sfx];
+    if (sfx && !condStripSito(v)) v = settings[chiave];
+    return v;
+  }
+  var sections = [
+    [L.condOrari, campo('condOrari')],
+    [L.condCancellazione, campo('condCancellazione')],
+    [L.condPagamento, campo('condPagamento')],
+    [L.condRegole, campo('condRegole')],
+    [L.condAltro, campo('condAltro')]
+  ].filter(function (s) { return condStripSito(s[1]); });
+  if (!sections.length) return '';
+  return '<h2>' + L.condizioniTitolo + '</h2>' + sections.map(function (s) {
+    return '<div class="cond-section"><div class="cond-title">' + s[0] + '</div><div class="cond-body">' + s[1] + '</div></div>';
+  }).join('');
+}
+
+async function caricaCondizioni() {
+  try {
+    var risSet = await sb.from('app_blobs').select('data').eq('key', 'settings').maybeSingle();
+    var settings = (risSet.data && risSet.data.data) || {};
+    var html = buildCondizioniSitoHtml(settings);
+    var box = document.getElementById('cond-box');
+    if (html) { box.innerHTML = html; box.style.display = 'block'; }
+  } catch (e) {
+    console.error('Condizioni della struttura non caricate:', e);
+  }
+}
+
 async function caricaDatiCalendario() {
   try {
     var risR = await sb.from('rooms').select('*').eq('status', 'disponibile');
@@ -534,6 +603,7 @@ function cambiaMese(dir) {
 }
 
 caricaDatiCalendario();
+caricaCondizioni();
 
 function notti(checkin, checkout) {
   var a = new Date(checkin+'T00:00:00'), b = new Date(checkout+'T00:00:00');
