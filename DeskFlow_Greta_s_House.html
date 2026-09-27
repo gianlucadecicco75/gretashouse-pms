@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 22/09/2026 · 22:02</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 27/09/2026 · 18:59</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -26569,7 +26569,7 @@ function _ssRenderHTML(visite, periodo, ricerche) {
     var ci = rc.checkin, co = rc.checkout;
     if (!ci || !co) return;
     var chiaveCoppia = fmtDate(ci) + ' → ' + fmtDate(co);
-    if (!perCoppiaDate[chiaveCoppia]) perCoppiaDate[chiaveCoppia] = { n: 0, ci: ci };
+    if (!perCoppiaDate[chiaveCoppia]) perCoppiaDate[chiaveCoppia] = { n: 0, ci: ci, notti: nights(ci, co) };
     perCoppiaDate[chiaveCoppia].n++;
     var d = ci;
     var guardia = 0;
@@ -26582,10 +26582,27 @@ function _ssRenderHTML(visite, periodo, ricerche) {
   });
   var mesiOrdinati = Object.keys(notiPerMese).sort();
   var maxNottiMese = Math.max.apply(null, mesiOrdinati.map(function(m){return notiPerMese[m];}).concat([1]));
-  var coppieTop = Object.entries(perCoppiaDate).sort(function(a,b){ return b[1].n - a[1].n; }).slice(0, 10);
+  var coppieTop = Object.entries(perCoppiaDate).sort(function(a,b){ return b[1].n - a[1].n; }); // tutti i periodi, non solo i primi 10
   var MESI_IT = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
   function etichettaMese(m){ var p = m.split('-'); return MESI_IT[parseInt(p[1],10)-1] + ' ' + p[0]; }
   var ricercheSenzaDisponibilita = ricerche.filter(function(rc){ return rc.esito === 'non_disponibile'; }).length;
+
+  // Riga dedicata ai "Periodi più richiesti": etichetta (data → data + notti) su una riga intera,
+  // così non viene mai tagliata, e la barra colorata sotto — a differenza di barRow, che affianca
+  // etichetta e barra sulla stessa riga stringendo l'etichetta a 150px (va bene per mesi/pagine, ma
+  // tronca le date "gg/mm/aaaa → gg/mm/aaaa").
+  function periodoRow(label, notti, val, max, colore) {
+    var pct = max > 0 ? Math.round(val/max*100) : 0;
+    return '<div style="margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:3px">' +
+        '<div style="font-size:12.5px;color:var(--text2)">'+label+' <span style="color:var(--text3);font-weight:600">· '+notti+' nott'+(notti===1?'e':'i')+'</span></div>' +
+        '<div style="font-size:12.5px;font-weight:700;white-space:nowrap">'+val+' ricerc'+(val===1?'a':'he')+'</div>' +
+      '</div>' +
+      '<div style="background:var(--surface2);border-radius:5px;height:14px;overflow:hidden">' +
+        '<div style="width:'+Math.max(pct,3)+'%;background:'+(colore||'var(--accent)')+';height:100%"></div>' +
+      '</div>' +
+    '</div>';
+  }
 
   function barRow(label, val, max, colore) {
     var pct = max > 0 ? Math.round(val/max*100) : 0;
@@ -26667,8 +26684,10 @@ function _ssRenderHTML(visite, periodo, ricerche) {
           '<div style="font-size:11.5px;color:var(--text3);margin-bottom:12px">'+ricerche.length+' ricerche effettuate in questo periodo'+(ricercheSenzaDisponibilita?' · '+ricercheSenzaDisponibilita+' senza disponibilità trovata':'')+'</div>' +
           '<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Notti richieste per mese di soggiorno</div>' +
           mesiOrdinati.map(function(m){ return barRow(etichettaMese(m), notiPerMese[m], maxNottiMese, '#8b5cf6'); }).join('') +
-          '<div style="font-size:12px;font-weight:700;color:var(--text2);margin:16px 0 6px">Periodi più richiesti</div>' +
-          coppieTop.map(function(c){ return barRow(c[0], c[1].n, coppieTop[0][1].n, '#f59e0b'); }).join('')
+          '<div style="font-size:12px;font-weight:700;color:var(--text2);margin:16px 0 6px">Periodi più richiesti ('+coppieTop.length+')</div>' +
+          '<div style="'+(coppieTop.length>8?'max-height:360px;overflow-y:auto;padding-right:4px':'')+'">' +
+            coppieTop.map(function(c){ return periodoRow(c[0], c[1].notti, c[1].n, coppieTop[0][1].n, '#f59e0b'); }).join('') +
+          '</div>'
         : '<div style="color:var(--text3);font-size:13px">Ancora nessuna ricerca registrata in questo periodo. Se hai appena attivato questa funzione, controlla di aver eseguito lo script SQL "site_searches_setup.sql" su Supabase e di aver caricato il modulo di prenotazione aggiornato.</div>') +
       '</div>' +
     '</div>' +
