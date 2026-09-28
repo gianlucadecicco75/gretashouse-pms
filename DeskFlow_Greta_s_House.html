@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 27/09/2026 · 21:18</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 16:05</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -746,6 +746,7 @@ function bookingToSupabase(b) {
     caparra:b.caparra||0, data_caparra:b.dataCaparra||null, metodo_caparra:b.metodoCaparra||'',
     extras:b.extras||[], notes:b.notes||'', group_id:b.groupId||null, color:b.color||null,
     componenti:b.componenti||[], checkin_at:b.checkinAt||null, checkout_at:b.checkoutAt||null, checkin_token:b.checkinToken||null, tipo_documento_conto:b.tipoDocumentoConto||null,
+    consenso_privacy:!!b.consensoPrivacy, consenso_privacy_at:b.consensoPrivacyAt||null, firma:b.firma||null,
     fattura:b.fattura||null, garanzia:b.garanzia||null, alloggiati_web_inviato_at:b.alloggiatiWebInviatoAt||null, created_at:b.createdAt||new Date().toISOString(),
     modified_at:b.modifiedAt||null, cancelled_at:b.cancelledAt||null,
     bloccata:!!b.bloccata, comunicazioni:b.comunicazioni||[], tipo_alloggiato_manuale:b.tipoAlloggiatoManuale||null, escludi_conteggi:!!b.escludiConteggi,
@@ -765,6 +766,7 @@ function bookingFromSupabase(b) {
     caparra:Number(b.caparra)||0, dataCaparra:b.data_caparra||'', metodoCaparra:b.metodo_caparra||'',
     extras:b.extras||[], notes:b.notes||'', groupId:b.group_id||'', color:b.color||'',
     componenti:b.componenti||[], checkinAt:b.checkin_at||'', checkoutAt:b.checkout_at||'', checkinToken:b.checkin_token||'', tipoDocumentoConto:b.tipo_documento_conto||'',
+    consensoPrivacy:!!b.consenso_privacy, consensoPrivacyAt:b.consenso_privacy_at||'', firma:b.firma||'',
     fattura:b.fattura||null, garanzia:b.garanzia||null, alloggiatiWebInviatoAt:b.alloggiati_web_inviato_at||null, createdAt:b.created_at||new Date().toISOString(),
     modifiedAt:b.modified_at||'', cancelledAt:b.cancelled_at||'',
     bloccata:!!b.bloccata, comunicazioni:b.comunicazioni||[], tipoAlloggiatoManuale:b.tipo_alloggiato_manuale||'', escludiConteggi:!!b.escludi_conteggi,
@@ -29790,11 +29792,21 @@ function getRevenueConfig(){
         {min:60,max:85,adj:10},
         {min:85,max:101,adj:25}
       ],
+      // Soglie di DOMANDA: quante ricerche di disponibilità (site_searches, dal sito di prenotazione)
+      // toccano quella data, negli ultimi 90 giorni — segnale in più oltre all'occupazione: tante
+      // ricerche su un periodo ancora poco occupato indicano interesse crescente, utile per alzare
+      // il prezzo prima che si riempia davvero.
+      soglieDomanda:[
+        {min:0,max:2,adj:0},
+        {min:2,max:5,adj:5},
+        {min:5,max:999,adj:12}
+      ],
       eventi:[]
     };
     DB.setObj('revenueConfig', c);
   }
   if(!c.soglie) c.soglie=[];
+  if(!c.soglieDomanda) c.soglieDomanda=[{min:0,max:2,adj:0},{min:2,max:5,adj:5},{min:5,max:999,adj:12}];
   if(!c.eventi) c.eventi=[];
   return c;
 }
@@ -29824,8 +29836,28 @@ function isWeekendDate(ds){
   return d===5||d===6; // venerdì e sabato notte
 }
 
+// ── Domanda (ricerche fatte dai clienti sul sito di prenotazione, tabella site_searches) ──
+// Caricata una volta in background (facoltativa: se la tabella non esiste ancora, la domanda
+// semplicemente non viene mostrata/usata, tutto il resto del Prezzo consigliato continua a funzionare).
+var _revRicercheCache = null; // null = non ancora caricata, [] = caricata ma vuota/non disponibile
+async function _revCaricaRicerche(){
+  if(!supabaseClient || !supabaseReady){ _revRicercheCache=[]; return; }
+  try{
+    var res = await supabaseClient.from('site_searches').select('checkin,checkout')
+      .gte('ts', addDays(today(),-90)+'T00:00:00Z').limit(20000);
+    _revRicercheCache = res.error ? [] : (res.data||[]);
+  } catch(e){ _revRicercheCache=[]; }
+  if(currentPage==='revenue') renderRevenue();
+}
+// Quante ricerche (ultimi 90gg) coprono la data ds. Torna null se la domanda non è ancora
+// disponibile (in caricamento o tabella assente) — chi la usa deve gestire questo caso.
+function contaRicerchePerData(ds){
+  if(!_revRicercheCache) return null;
+  return _revRicercheCache.filter(function(r){ return r.checkin && r.checkout && r.checkin<=ds && r.checkout>ds; }).length;
+}
+
 // Calcola il prezzo consigliato per una camera in una data, con il dettaglio del calcolo
-function calcolaPrezzoConsigliato(room, ds, cfg, spintaExtra){
+function calcolaPrezzoConsigliato(room, ds, cfg, spintaExtra, domandaCount){
   var pax=Math.min(2, Math.max(1, parseInt(room.capacity)||1));
   var base=getPrezzoListino(room.id, pax, ds, 'standard') || room.price || 0;
   if(!base) return null;
@@ -29834,11 +29866,14 @@ function calcolaPrezzoConsigliato(room, ds, cfg, spintaExtra){
   var we=isWeekendDate(ds);
   var eventi=eventiAttiviPerData(ds, cfg.eventi);
   var eventAdj=eventi.reduce(function(s,e){return s+(parseFloat(e.boost)||0);},0);
-  var totAdj = occAdj + (we?cfg.weekendBoost:0) + eventAdj + (spintaExtra||0);
+  var domandaAdj=(domandaCount!=null) ? soglieAdjPerOccupazione(domandaCount, cfg.soglieDomanda||[]) : 0;
+  var totAdj = occAdj + (we?cfg.weekendBoost:0) + eventAdj + (spintaExtra||0) + domandaAdj;
   var suggerito = Math.max(0, Math.round(base*(1+totAdj/100)*100)/100);
   return {
     base:base, occ:occ, occAdj:occAdj, weekend:we, weekendAdj:we?cfg.weekendBoost:0,
-    eventi:eventi, eventAdj:eventAdj, spintaExtra:spintaExtra||0, totAdj:totAdj, suggerito:suggerito, pax:pax
+    eventi:eventi, eventAdj:eventAdj, spintaExtra:spintaExtra||0,
+    domanda:domandaCount, domandaAdj:domandaAdj,
+    totAdj:totAdj, suggerito:suggerito, pax:pax
   };
 }
 
@@ -29860,6 +29895,7 @@ function renderRevenue() {
   var ccfg=DB.getObj('settings',{currency:'€'});
   if(!revPeriodoDal){ revPeriodoDal=cfg.periodoDal||today(); }
   if(!revPeriodoAl){ revPeriodoAl=cfg.periodoAl||addDays(revPeriodoDal,29); }
+  if(_revRicercheCache===null){ _revCaricaRicerche(); } // parte in background, ridisegna da sola quando pronta
 
   var rooms=getRoomsSortedByCategory().filter(function(r){return r.status==='disponibile';});
   var categorie=[]; rooms.forEach(function(r){var c=r.type||'Senza tipologia'; if(categorie.indexOf(c)<0) categorie.push(c);});
@@ -29918,6 +29954,26 @@ function renderRevenue() {
         </div>
         <button class="btn btn-sm" onclick="aggiungiSogliaRevenue()">+ Aggiungi soglia</button>
         <button class="btn btn-sm btn-primary" onclick="salvaSoglieRevenue()">💾 Salva soglie</button>
+      </div>
+
+      <div class="card" style="max-width:900px">
+        <div class="card-header"><span class="card-title">🔎 Soglie di domanda → variazione prezzo</span></div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Quante ricerche di disponibilità hanno fatto i clienti sul sito, negli ultimi 90 giorni, per quella data — un segnale in più oltre all'occupazione: tante ricerche su un periodo ancora poco pieno spesso significa che sta per riempirsi.${_revRicercheCache===null ? ' <span style="color:var(--amber)">Caricamento dati in corso…</span>' : (_revRicercheCache.length===0 ? ' <span style="color:var(--text3)">Nessun dato ancora disponibile (serve aver attivato il tracciamento ricerche sul sito).</span>' : '')}</div>
+        <div id="rev-dom-list">
+          ${(cfg.soglieDomanda||[]).map((s,i) => `
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <span style="font-size:12px;color:var(--text2);width:90px">Ricerche</span>
+              <input type="number" value="${s.min}" min="0" style="width:60px;padding:4px 6px;border:.5px solid var(--border2);border-radius:5px" id="rev-dom-min-${i}">
+              <span style="font-size:12px;color:var(--text3)">– </span>
+              <input type="number" value="${s.max}" min="0" style="width:60px;padding:4px 6px;border:.5px solid var(--border2);border-radius:5px" id="rev-dom-max-${i}">
+              <span style="font-size:12px;color:var(--text3)">→</span>
+              <input type="number" value="${s.adj}" step="1" style="width:60px;padding:4px 6px;border:.5px solid var(--border2);border-radius:5px" id="rev-dom-adj-${i}">
+              <span style="font-size:12px;color:var(--text3)">%</span>
+              <button class="btn btn-sm btn-danger" onclick="rimuoviSogliaRevenue(${i},'soglieDomanda')">🗑</button>
+            </div>`).join('')}
+        </div>
+        <button class="btn btn-sm" onclick="aggiungiSogliaRevenue('soglieDomanda')">+ Aggiungi soglia</button>
+        <button class="btn btn-sm btn-primary" onclick="salvaSoglieRevenue('rev-dom','soglieDomanda')">💾 Salva soglie</button>
       </div>
 
       <div class="card" style="max-width:900px">
@@ -29988,7 +30044,7 @@ function renderRevenue() {
         <div class="card-header"><span class="card-title">Prezzi consigliati per tipologia</span></div>
         <div style="overflow-x:auto">
         <table><thead><tr>
-          <th>Data</th><th>Occupazione</th><th>Evento</th>
+          <th>Data</th><th>Occupazione</th><th>Domanda</th><th>Evento</th>
           ${categorie.map(c=>'<th colspan="2">'+c+'</th>').join('')}
         </tr></thead><tbody>
           ${giorni.map(ds => {
@@ -29996,18 +30052,20 @@ function renderRevenue() {
             var we=isWeekendDate(ds);
             var eventiOggi=eventiAttiviPerData(ds, cfg.eventi);
             var spinta = (occ>50) ? gapPct : 0;
+            var domanda = contaRicerchePerData(ds);
             var dLabel=parseLD(ds).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
             return '<tr>'+
               '<td>'+(we?'<strong style="color:var(--accent)">'+dLabel+'</strong>':dLabel)+'</td>'+
               '<td><span class="badge '+(occ>=85?'badge-red':occ>=60?'badge-amber':occ>=30?'badge-blue':'badge-gray')+'">'+occ+'%</span></td>'+
+              '<td>'+(domanda===null?'<span style="color:var(--text3);font-size:11px">…</span>':'<span class="badge badge-gray">'+domanda+'</span>')+'</td>'+
               '<td>'+(eventiOggi.length?eventiOggi.map(e=>'<span class="badge badge-green" style="font-size:10px">'+e.nome+'</span>').join(' '):'—')+'</td>'+
               categorie.map(function(cat){
                 var repRoom=rooms.find(function(r){return (r.type||'Senza tipologia')===cat;});
                 if(!repRoom) return '<td colspan="2">—</td>';
-                var calc=calcolaPrezzoConsigliato(repRoom, ds, cfg, spinta);
+                var calc=calcolaPrezzoConsigliato(repRoom, ds, cfg, spinta, domanda);
                 if(!calc) return '<td colspan="2" style="color:var(--text3);font-size:11px">nessun prezzo base</td>';
                 var diff=calc.base>0 ? Math.round((calc.suggerito-calc.base)/calc.base*100) : 0;
-                var detail='Base '+fmtCurrency(calc.base)+' · Occ. '+calc.occ+'% ('+(calc.occAdj>=0?'+':'')+calc.occAdj+'%)'+(calc.weekend?' · Weekend +'+calc.weekendAdj+'%':'')+(calc.eventAdj?' · Eventi '+(calc.eventAdj>=0?'+':'')+calc.eventAdj+'%':'')+(calc.spintaExtra?' · Spinta obiettivo +'+calc.spintaExtra+'%':'');
+                var detail='Base '+fmtCurrency(calc.base)+' · Occ. '+calc.occ+'% ('+(calc.occAdj>=0?'+':'')+calc.occAdj+'%)'+(calc.weekend?' · Weekend +'+calc.weekendAdj+'%':'')+(calc.eventAdj?' · Eventi '+(calc.eventAdj>=0?'+':'')+calc.eventAdj+'%':'')+(calc.spintaExtra?' · Spinta obiettivo +'+calc.spintaExtra+'%':'')+((calc.domanda!==null&&calc.domanda!==undefined)?' · Domanda '+calc.domanda+' ric. ('+(calc.domandaAdj>=0?'+':'')+calc.domandaAdj+'%)':'');
                 return '<td style="text-align:right" title="'+detail.replace(/"/g,'&quot;')+'"><strong style="color:'+(diff>0?'var(--green)':diff<0?'var(--red)':'var(--text2)')+'">'+fmtCurrency(calc.suggerito)+'</strong><div style="font-size:9.5px;color:var(--text3)">base '+fmtCurrency(calc.base)+' ('+(diff>=0?'+':'')+diff+'%)</div></td>'+
                   '<td><button class="btn btn-sm" style="font-size:10px;padding:2px 6px" onclick="applicaPrezzoConsigliatoTipologia(\'' + encodeURIComponent(cat) + '\',\'' + ds + '\')">✓</button></td>';
               }).join('') +
@@ -30016,7 +30074,7 @@ function renderRevenue() {
         </tbody></table>
         </div>
         <div style="font-size:11px;color:var(--text3);margin-top:10px">
-          Passa il mouse su un prezzo per vedere il dettaglio del calcolo. Il pulsante ✓ applica il prezzo consigliato come tariffa Standard per quella data, a tutte le camere della tipologia (resta comunque modificabile in seguito dal Listino prezzi).
+          Passa il mouse su un prezzo per vedere il dettaglio del calcolo. La colonna "Domanda" mostra il numero di ricerche fatte dagli ospiti sul sito per quella data (ultimi 90 giorni). Il pulsante ✓ applica il prezzo consigliato come tariffa Standard per quella data, a tutte le camere della tipologia (resta comunque modificabile in seguito dal Listino prezzi).
         </div>
       </div>
 
@@ -30032,22 +30090,26 @@ function salvaRevenueBase(){
   showToast('Impostazioni salvate');
   renderRevenue();
 }
-function aggiungiSogliaRevenue(){
+function aggiungiSogliaRevenue(chiave){
+  chiave = chiave || 'soglie';
   var cfg=getRevenueConfig();
-  cfg.soglie.push({min:0,max:100,adj:0});
+  if(!cfg[chiave]) cfg[chiave]=[];
+  cfg[chiave].push({min:0,max:100,adj:0});
   saveRevenueConfig(cfg);
   renderPage(currentPage);
 }
-function rimuoviSogliaRevenue(i){
+function rimuoviSogliaRevenue(i, chiave){
+  chiave = chiave || 'soglie';
   var cfg=getRevenueConfig();
-  cfg.soglie.splice(i,1);
+  cfg[chiave].splice(i,1);
   saveRevenueConfig(cfg);
   renderPage(currentPage);
 }
-function salvaSoglieRevenue(prefix){
+function salvaSoglieRevenue(prefix, chiave){
   prefix = prefix || 'rev-sog';
+  chiave = chiave || 'soglie';
   var cfg=getRevenueConfig();
-  cfg.soglie=cfg.soglie.map(function(s,i){
+  cfg[chiave]=(cfg[chiave]||[]).map(function(s,i){
     return {
       min: parseFloat(document.getElementById(prefix+'-min-'+i).value)||0,
       max: parseFloat(document.getElementById(prefix+'-max-'+i).value)||100,
@@ -30122,9 +30184,10 @@ function applicaPrezzoConsigliatoTipologia(catEnc, ds){
   var fatturatoAttuale=bookings.reduce(function(s,b){return s+(Number(b.totalPrice)||0);},0);
   var gapPct=obiettivo>0 ? Math.max(0, Math.min(30, Math.round((obiettivo-fatturatoAttuale)/obiettivo*100))) : 0;
   var spinta=(occ>50)?gapPct:0;
+  var domanda=contaRicerchePerData(ds);
   var count=0;
   rooms.forEach(function(r){
-    var calc=calcolaPrezzoConsigliato(r, ds, cfg, spinta);
+    var calc=calcolaPrezzoConsigliato(r, ds, cfg, spinta, domanda);
     if(calc){ applicaPrezzoConsigliato(r.id, ds, calc.suggerito); count++; }
   });
   showToast('Prezzo applicato a '+count+' camer'+(count===1?'a':'e')+' — '+cat+' · '+fmtDate(ds));

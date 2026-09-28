@@ -33,6 +33,55 @@
   .ok-box .tick { font-size:52px; }
   .ok-box h2 { color:#166534; margin:10px 0 6px; }
   .privacy { font-size:11px; color:#9a8b88; margin-top:14px; line-height:1.5; }
+
+  /* --- Consenso privacy --- */
+  .consent-box { display:flex; align-items:flex-start; gap:10px; background:#fbf5f0; border:1px solid #eee0dd; border-radius:10px; padding:12px 14px; margin:14px 0; }
+  .consent-box input[type="checkbox"] { width:18px; height:18px; margin-top:2px; flex:none; accent-color:#1e88e5; }
+  .consent-box label { font-size:12.5px; color:#4a3f3d; line-height:1.5; cursor:pointer; }
+  .consent-box a { color:#1e88e5; }
+
+  /* --- Firma digitale --- */
+  .sig-wrap { margin:14px 0; }
+  .sig-wrap > label { display:block; font-size:11.5px; font-weight:700; color:#6b5b58; margin-bottom:6px; text-transform:uppercase; letter-spacing:.3px; }
+  .sig-hint { font-size:11.5px; color:#9a8b88; margin-bottom:6px; }
+  .sig-pad-box { position:relative; border:1.5px dashed #ddd0cd; border-radius:10px; background:#fff; overflow:hidden; touch-action:none; }
+  #sig-canvas { display:block; width:100%; height:150px; cursor:crosshair; }
+  .sig-placeholder { position:absolute; top:50%; left:0; right:0; transform:translateY(-50%); text-align:center; font-size:12.5px; color:#c9bcb9; pointer-events:none; }
+  .sig-actions { display:flex; justify-content:flex-end; margin-top:6px; }
+  .sig-clear { background:none; border:none; color:#b91c1c; font-size:12px; font-weight:700; cursor:pointer; padding:4px 6px; }
+
+  /* --- Guida ospiti --- */
+  .guide-toggle { display:flex; align-items:center; justify-content:space-between; cursor:pointer; }
+  .guide-toggle h2 { margin:0; }
+  .guide-toggle .chev { font-size:13px; color:#8a7a77; transition:transform .2s; }
+  .guide-toggle.open .chev { transform:rotate(180deg); }
+  .guide-body { display:none; margin-top:14px; }
+  .guide-body.open { display:block; }
+  .guide-welcome { font-size:13.5px; color:#4a3f3d; line-height:1.6; margin-bottom:14px; }
+  .guide-sec { margin-bottom:16px; }
+  .guide-sec:last-child { margin-bottom:0; }
+  .guide-sec h4 { font-size:12.5px; text-transform:uppercase; letter-spacing:.4px; color:#8e1046; margin:0 0 8px; }
+  .guide-info-row { display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-bottom:1px solid #f3ecea; }
+  .guide-info-row:last-child { border-bottom:none; }
+  .guide-info-row span:first-child { color:#8a7a77; }
+  .guide-info-row span:last-child { font-weight:700; text-align:right; }
+  .guide-contact { display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #f3ecea; font-size:13px; }
+  .guide-contact:last-child { border-bottom:none; }
+  .guide-contact .gi { font-size:18px; flex:none; }
+  .guide-contact .gc-label { color:#8a7a77; font-size:11.5px; }
+  .guide-contact .gc-main { font-weight:700; }
+  .guide-contact .gc-sub { color:#9a8b88; font-size:11px; }
+  .guide-item { padding:9px 0; border-bottom:1px solid #f3ecea; font-size:13px; }
+  .guide-item:last-child { border-bottom:none; }
+  .guide-item .gi-name { font-weight:700; }
+  .guide-item .gi-desc { color:#6b5b58; font-size:12.5px; margin-top:2px; line-height:1.45; }
+  .guide-item .gi-dist { color:#9a8b88; font-size:11px; margin-top:3px; }
+  .guide-rule { display:flex; gap:8px; align-items:flex-start; padding:5px 0; font-size:13px; }
+  .guide-appliance { background:#fbf5f0; border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+  .guide-appliance .ga-name { font-weight:700; font-size:13px; margin-bottom:4px; }
+  .guide-appliance .ga-instr { font-size:12.5px; color:#6b5b58; line-height:1.5; white-space:pre-wrap; }
+  .guide-appliance .ga-photos img { width:60px; height:60px; object-fit:cover; border-radius:6px; margin:4px 4px 0 0; }
+  .guide-footer { font-size:11.5px; color:#9a8b88; text-align:center; margin-top:14px; }
 </style>
 </head>
 <body>
@@ -60,6 +109,10 @@ function fmtData(iso) {
   return d.toLocaleDateString('it-IT', { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric' });
 }
 
+function escHtml(s) {
+  return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 let prenotazione = null;
 let token = '';
 
@@ -81,6 +134,7 @@ async function carica() {
     }
     prenotazione = data.booking;
     renderForm(data.propertyName, data.booking);
+    caricaGuida(); // in parallelo, non blocca il resto della pagina
   } catch (err) {
     el.innerHTML = '<div class="msg err">Errore di connessione — riprova tra poco.</div>';
   }
@@ -90,16 +144,7 @@ function renderForm(propertyName, b) {
   const el = document.getElementById('content');
   const persone = (b.adults || 1) + (b.children || 0);
   const componentiEsistenti = b.componenti || [];
-
-  if (b.status === 'check-in' && componentiEsistenti.length >= persone) {
-    el.innerHTML =
-      '<div class="card"><div class="ok-box">' +
-        '<div class="tick">✅</div>' +
-        '<h2>Check-in già completato</h2>' +
-        '<p style="color:#8a7a77;font-size:13.5px">I tuoi dati sono già stati ricevuti. Ci vediamo presto!</p>' +
-      '</div></div>';
-    return;
-  }
+  const giaFatto = (b.status === 'check-in' && componentiEsistenti.length >= persone);
 
   let guestFields = '';
   for (let i = 0; i < persone; i++) {
@@ -126,24 +171,125 @@ function renderForm(propertyName, b) {
     '</div>';
   }
 
-  el.innerHTML =
-    '<div class="card">' +
+  const infoCard = '<div class="card">' +
       '<h2>Il tuo soggiorno</h2>' +
       '<div class="rowinfo"><span>Struttura</span><span>' + (propertyName||'Greta\'s House') + '</span></div>' +
       '<div class="rowinfo"><span>Unità</span><span>' + (b.roomName||'') + '</span></div>' +
       '<div class="rowinfo"><span>Check-in</span><span>' + fmtData(b.checkin) + '</span></div>' +
       '<div class="rowinfo"><span>Check-out</span><span>' + fmtData(b.checkout) + '</span></div>' +
       '<div class="rowinfo"><span>Ospiti</span><span>' + persone + '</span></div>' +
-    '</div>' +
+    '</div>';
+
+  const guideCard = '<div class="card" id="guide-card">' +
+      '<div class="guide-toggle" id="guide-toggle" onclick="toggleGuida()"><h2>🗺️ Guida al soggiorno</h2><span class="chev">▾</span></div>' +
+      '<div class="guide-body" id="guide-body"><div class="msg" style="padding:20px 0">Caricamento guida…</div></div>' +
+    '</div>';
+
+  if (giaFatto) {
+    el.innerHTML =
+      '<div class="card"><div class="ok-box">' +
+        '<div class="tick">✅</div>' +
+        '<h2>Check-in già completato</h2>' +
+        '<p style="color:#8a7a77;font-size:13.5px">I tuoi dati sono già stati ricevuti. Ci vediamo presto!</p>' +
+      '</div></div>' + infoCard + guideCard;
+    return;
+  }
+
+  el.innerHTML = infoCard +
     '<div class="card">' +
       '<h2>Dati degli ospiti</h2>' +
       '<p style="font-size:12.5px;color:#8a7a77;margin-top:-6px">Compila i dati di ogni persona che soggiornerà — sono richiesti dalla legge per la registrazione degli ospiti.</p>' +
       guestFields +
+      '<div class="consent-box">' +
+        '<input type="checkbox" id="consenso-privacy">' +
+        '<label for="consenso-privacy">Dichiaro che i dati inseriti sono veritieri e presto il consenso al trattamento dei miei dati personali e di quelli degli altri ospiti indicati, ai sensi del Regolamento UE 2016/679 (GDPR), per gli obblighi di registrazione e comunicazione alle autorità competenti.</label>' +
+      '</div>' +
+      '<div class="sig-wrap">' +
+        '<label>Firma dell\'intestatario</label>' +
+        '<div class="sig-hint">Firma qui sotto con il dito o il mouse per confermare i dati inseriti.</div>' +
+        '<div class="sig-pad-box"><canvas id="sig-canvas"></canvas><div class="sig-placeholder" id="sig-placeholder">✍️ Firma qui</div></div>' +
+        '<div class="sig-actions"><button type="button" class="sig-clear" onclick="pulisciFirma()">Cancella firma</button></div>' +
+      '</div>' +
       '<button class="btn btn-primary" id="btn-invia" onclick="inviaCheckin()">✅ Invia i miei dati</button>' +
       '<div class="privacy">I dati inseriti sono trattati esclusivamente per gli obblighi di registrazione degli ospiti e comunicati alle autorità competenti come previsto dalla normativa vigente.</div>' +
-    '</div>';
+    '</div>' + guideCard;
+
+  initFirma();
 }
 
+/* ========== Firma digitale (canvas) ========== */
+let sigCtx = null, sigDrawing = false, sigVuota = true;
+
+function initFirma() {
+  const canvas = document.getElementById('sig-canvas');
+  if (!canvas) return;
+  const box = canvas.parentElement;
+  const ratio = window.devicePixelRatio || 1;
+  const w = box.clientWidth, h = 150;
+  canvas.width = w * ratio;
+  canvas.height = h * ratio;
+  sigCtx = canvas.getContext('2d');
+  sigCtx.scale(ratio, ratio);
+  sigCtx.lineWidth = 2.2;
+  sigCtx.lineCap = 'round';
+  sigCtx.strokeStyle = '#1a1a1a';
+  sigVuota = true;
+
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches && e.touches[0] ? e.touches[0] : e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+  function start(e) {
+    e.preventDefault();
+    sigDrawing = true;
+    const p = pos(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(p.x, p.y);
+    const ph = document.getElementById('sig-placeholder');
+    if (ph) ph.style.display = 'none';
+  }
+  function move(e) {
+    if (!sigDrawing) return;
+    e.preventDefault();
+    const p = pos(e);
+    sigCtx.lineTo(p.x, p.y);
+    sigCtx.stroke();
+    sigVuota = false;
+  }
+  function end(e) { sigDrawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive:false });
+  canvas.addEventListener('touchmove', move, { passive:false });
+  canvas.addEventListener('touchend', end);
+}
+
+function pulisciFirma() {
+  const canvas = document.getElementById('sig-canvas');
+  if (!canvas || !sigCtx) return;
+  sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+  sigVuota = true;
+  const ph = document.getElementById('sig-placeholder');
+  if (ph) ph.style.display = 'block';
+}
+
+function firmaDataUrl() {
+  const canvas = document.getElementById('sig-canvas');
+  if (!canvas || sigVuota) return '';
+  // Ridisegna su sfondo bianco (il canvas è trasparente) prima di esportare
+  const out = document.createElement('canvas');
+  out.width = canvas.width; out.height = canvas.height;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#fff';
+  octx.fillRect(0, 0, out.width, out.height);
+  octx.drawImage(canvas, 0, 0);
+  return out.toDataURL('image/png');
+}
+
+/* ========== Invio check-in ========== */
 async function inviaCheckin() {
   const persone = (prenotazione.adults || 1) + (prenotazione.children || 0);
   const componenti = [];
@@ -165,6 +311,17 @@ async function inviaCheckin() {
     });
   }
 
+  const consenso = document.getElementById('consenso-privacy');
+  if (!consenso || !consenso.checked) {
+    alert('Per procedere è necessario accettare il consenso al trattamento dei dati personali.');
+    return;
+  }
+  const firma = firmaDataUrl();
+  if (!firma) {
+    alert('Per procedere è necessario firmare nell\'apposito riquadro.');
+    return;
+  }
+
   const btn = document.getElementById('btn-invia');
   btn.disabled = true;
   btn.textContent = 'Invio in corso…';
@@ -173,21 +330,107 @@ async function inviaCheckin() {
     const res = await fetch(FUNZIONE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
-      body: JSON.stringify({ token: token, componenti: componenti })
+      body: JSON.stringify({
+        token: token,
+        componenti: componenti,
+        consensoPrivacy: true,
+        consensoData: new Date().toISOString(),
+        firma: firma
+      })
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.errore || 'Invio non riuscito');
+    const guideCardHtml = document.getElementById('guide-card') ? document.getElementById('guide-card').outerHTML : '';
     document.getElementById('content').innerHTML =
       '<div class="card"><div class="ok-box">' +
         '<div class="tick">✅</div>' +
         '<h2>Check-in completato!</h2>' +
         '<p style="color:#8a7a77;font-size:13.5px">Grazie, i tuoi dati sono stati ricevuti correttamente.<br>Ti aspettiamo a Greta\'s House!</p>' +
-      '</div></div>';
+      '</div></div>' + guideCardHtml;
+    caricaGuida();
   } catch (err) {
     btn.disabled = false;
     btn.textContent = '✅ Invia i miei dati';
     alert('Invio non riuscito: ' + (err.message || 'errore sconosciuto') + '\nRiprova tra poco.');
   }
+}
+
+/* ========== Guida al soggiorno (letta direttamente da Supabase, stessa "guidaOspiti" del gestionale) ========== */
+let guidaCache = null;
+
+function toggleGuida() {
+  const toggle = document.getElementById('guide-toggle');
+  const body = document.getElementById('guide-body');
+  if (!toggle || !body) return;
+  const apri = !body.classList.contains('open');
+  toggle.classList.toggle('open', apri);
+  body.classList.toggle('open', apri);
+}
+
+async function caricaGuida() {
+  const body = document.getElementById('guide-body');
+  if (!body) return;
+  if (guidaCache) { renderGuida(guidaCache); return; }
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/app_blobs?key=eq.guidaOspiti&select=data', {
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const rows = await res.json();
+    const d = (rows && rows[0] && rows[0].data) ? rows[0].data : null;
+    if (!d) {
+      body.innerHTML = '<div style="font-size:12.5px;color:#9a8b88;padding:10px 0">Guida non ancora disponibile — contattaci per qualsiasi informazione sul soggiorno.</div>';
+      return;
+    }
+    guidaCache = d;
+    renderGuida(d);
+  } catch (e) {
+    body.innerHTML = '<div style="font-size:12.5px;color:#9a8b88;padding:10px 0">Guida momentaneamente non disponibile.</div>';
+  }
+}
+
+function renderGuida(d) {
+  const body = document.getElementById('guide-body');
+  if (!body) return;
+  let html = '';
+  if (d.welcome) html += '<div class="guide-welcome">' + escHtml(d.welcome) + '</div>';
+
+  if (d.info && d.info.length) {
+    html += '<div class="guide-sec"><h4>Informazioni utili</h4>' +
+      d.info.map(f => '<div class="guide-info-row"><span>'+escHtml(f.label)+'</span><span>'+escHtml(f.value)+'</span></div>').join('') +
+      '</div>';
+  }
+  if (d.contacts && d.contacts.length) {
+    html += '<div class="guide-sec"><h4>Contatti utili</h4>' +
+      d.contacts.map(c => '<div class="guide-contact"><span class="gi">'+escHtml(c.icon||'📞')+'</span><div><div class="gc-label">'+escHtml(c.label)+'</div><div class="gc-main">'+escHtml(c.main)+'</div>'+(c.sub?'<div class="gc-sub">'+escHtml(c.sub)+'</div>':'')+'</div></div>').join('') +
+      '</div>';
+  }
+  const listSec = (title, arr) => {
+    if (!arr || !arr.length) return '';
+    return '<div class="guide-sec"><h4>'+title+'</h4>' +
+      arr.map(it => '<div class="guide-item"><span class="gi-name">'+escHtml(it.emoji||'📍')+' '+escHtml(it.name)+'</span><div class="gi-desc">'+escHtml(it.desc)+'</div>'+(it.dist?'<div class="gi-dist">'+escHtml(it.dist)+'</div>':'')+'</div>').join('') +
+      '</div>';
+  };
+  html += listSec('Dove mangiare', d.rest);
+  html += listSec('Spiagge', d.beach);
+  html += listSec('Da vedere', d.visit);
+  html += listSec('Attività ed esperienze', d.act);
+
+  if (d.rules && d.rules.length) {
+    html += '<div class="guide-sec"><h4>Regole della casa</h4>' +
+      d.rules.map(r => '<div class="guide-rule"><span>'+escHtml(r.icon||'📝')+'</span><span>'+escHtml(r.text)+'</span></div>').join('') +
+      '</div>';
+  }
+  if (d.appliances && d.appliances.length) {
+    html += '<div class="guide-sec"><h4>Elettrodomestici e comfort</h4>' +
+      d.appliances.map(a => {
+        const foto = (a.photos||[]).map(p => '<img src="'+p+'">').join('');
+        return '<div class="guide-appliance"><div class="ga-name">'+escHtml(a.name)+'</div><div class="ga-instr">'+escHtml(a.instructions)+'</div>'+(foto?'<div class="ga-photos">'+foto+'</div>':'')+'</div>';
+      }).join('') +
+      '</div>';
+  }
+  if (d.footer) html += '<div class="guide-footer">' + escHtml(d.footer) + '</div>';
+
+  body.innerHTML = html || '<div style="font-size:12.5px;color:#9a8b88;padding:10px 0">Guida non ancora disponibile.</div>';
 }
 
 carica();
