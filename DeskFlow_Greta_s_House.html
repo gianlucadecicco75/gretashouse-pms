@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 22:20</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 22:38</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -30356,6 +30356,30 @@ function applicaPrezzoConsigliato(roomId, ds, prezzo){
 }
 
 var revPeriodoDal='', revPeriodoAl='';
+// Range di date della tabella "Prezzi consigliati per tipologia" — separato dal "Periodo" generale
+// qui sopra: resta sempre dentro un solo mese, per non far crescere troppo la tabella. Cambiando
+// "Dal", "Al" si aggiusta da sola per restare nello stesso mese (e viceversa).
+var revTabDal='', revTabAl='';
+function ultimoGiornoMese(ds){
+  var y=parseInt(ds.slice(0,4),10), m=parseInt(ds.slice(5,7),10);
+  var primoProssimo = (m===12) ? (y+1)+'-01-01' : y+'-'+String(m+1).padStart(2,'0')+'-01';
+  return addDays(primoProssimo, -1);
+}
+function cambiaRevTabDal(v){
+  if(v<today()) v=today(); // niente date passate
+  revTabDal=v;
+  var ultimo=ultimoGiornoMese(v);
+  if(!revTabAl || revTabAl<v || revTabAl>ultimo) revTabAl=ultimo;
+  renderRevenue();
+}
+function cambiaRevTabAl(v){
+  var ultimo=ultimoGiornoMese(revTabDal);
+  var primoDelMese=revTabDal.slice(0,7)+'-01';
+  if(v<revTabDal) v=revTabDal;
+  if(v>ultimo) v=ultimo;
+  revTabAl=v;
+  renderRevenue();
+}
 function renderRevenue() {
   var cfg=getRevenueConfig();
   var ccfg=DB.getObj('settings',{currency:'€'});
@@ -30363,12 +30387,16 @@ function renderRevenue() {
   if(revPeriodoDal<today()){ revPeriodoDal=today(); } // niente date passate nel range dei prezzi consigliati
   if(!revPeriodoAl){ revPeriodoAl=cfg.periodoAl||addDays(revPeriodoDal,29); }
   if(revPeriodoAl<revPeriodoDal){ revPeriodoAl=addDays(revPeriodoDal,29); }
+  if(!revTabDal){ revTabDal=today(); }
+  if(revTabDal<today()){ revTabDal=today(); }
+  if(!revTabAl || revTabAl<revTabDal || revTabAl>ultimoGiornoMese(revTabDal)){ revTabAl=ultimoGiornoMese(revTabDal); }
   if(_revRicercheCache===null){ _revCaricaRicerche(); } // parte in background, ridisegna da sola quando pronta
   if(_revMeteoCache===null){ _revCaricaMeteo(); } // idem, per il meteo previsto
 
   var rooms=getRoomsSortedByCategory().filter(function(r){return r.status==='disponibile';});
   var categorie=[]; rooms.forEach(function(r){var c=r.type||'Senza tipologia'; if(categorie.indexOf(c)<0) categorie.push(c);});
   var giorni=getDatesInRange(revPeriodoDal, revPeriodoAl);
+  var giorniTab=getDatesInRange(revTabDal, revTabAl); // range dedicato alla tabella "Prezzi consigliati per tipologia" — sempre entro un mese
 
   // Fatturato già confermato nel periodo (prenotazioni non cancellate che si sovrappongono al periodo)
   var bookings=DB.get('bookings').filter(function(b){return b.status!=='cancellata' && b.checkin<revPeriodoAl && b.checkout>revPeriodoDal;});
@@ -30529,8 +30557,9 @@ function renderRevenue() {
       ${(function(){
         // ── Avvisi (regole di protezione): segnalano casi da controllare — non cambiano nulla
         // da soli, servono solo a farteli notare prima che il prezzo/occupazione ti sfugga.
+        // Usa lo stesso range della tabella qui sotto (giorniTab), non il "Periodo" generale.
         var avvisi=[];
-        giorni.forEach(function(ds){
+        giorniTab.forEach(function(ds){
           var occ=calcolaOccupazione(ds);
           var spinta=(occ>50)?gapPct:0;
           var domanda=contaRicerchePerData(ds);
@@ -30565,7 +30594,15 @@ function renderRevenue() {
 
       <div class="card">
         <div class="card-header"><span class="card-title">Prezzi consigliati per tipologia</span></div>
-        <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <div style="margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+          <div class="form-group" style="margin:0"><label style="font-size:11px">Dal</label>
+            <input type="date" value="${revTabDal}" min="${today()}" onchange="cambiaRevTabDal(this.value)">
+          </div>
+          <div class="form-group" style="margin:0"><label style="font-size:11px">Al</label>
+            <input type="date" value="${revTabAl}" min="${revTabDal}" max="${ultimoGiornoMese(revTabDal)}" onchange="cambiaRevTabAl(this.value)">
+          </div>
+          <div style="font-size:11px;color:var(--text3)">Resta sempre dentro un solo mese.</div>
+          <div style="flex:1"></div>
           <button class="btn btn-sm" onclick="esportaPrezziConsigliatiCSV()">📥 Esporta CSV</button>
           <button class="btn btn-sm" onclick="esportaPrezziConsigliatiXLSX()">📥 Esporta Excel</button>
         </div>
@@ -30574,7 +30611,7 @@ function renderRevenue() {
           <th>Data</th><th>Occupazione</th><th>Domanda</th><th>Meteo</th><th>Evento</th>
           ${categorie.map(c=>'<th colspan="2">'+c+'</th>').join('')}
         </tr></thead><tbody>
-          ${giorni.map(ds => {
+          ${giorniTab.map(ds => {
             var occ=calcolaOccupazione(ds);
             var we=isWeekendDate(ds);
             var eventiOggi=eventiAttiviPerData(ds, cfg.eventi);
@@ -30703,8 +30740,8 @@ function _prezziConsigliatiRighePerExport(){
   var cfg=getRevenueConfig();
   var rooms=getRoomsSortedByCategory().filter(function(r){return r.status==='disponibile';});
   var categorie=[]; rooms.forEach(function(r){var c=r.type||'Senza tipologia'; if(categorie.indexOf(c)<0) categorie.push(c);});
-  var giorni=getDatesInRange(revPeriodoDal, revPeriodoAl);
-  var bookings=DB.get('bookings').filter(function(b){return b.status!=='cancellata' && b.checkin<revPeriodoAl && b.checkout>revPeriodoDal;});
+  var giorni=getDatesInRange(revTabDal, revTabAl);
+  var bookings=DB.get('bookings').filter(function(b){return b.status!=='cancellata' && b.checkin<revTabAl && b.checkout>revTabDal;});
   var fatturatoAttuale=bookings.reduce(function(s,b){return s+(Number(b.totalPrice)||0);},0);
   var obiettivo=Number(cfg.fatturatoObiettivo)||0;
   var gapPct=obiettivo>0 ? Math.max(0, Math.min(30, Math.round((obiettivo-fatturatoAttuale)/obiettivo*100))) : 0;
