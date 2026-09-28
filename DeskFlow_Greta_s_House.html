@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 16:35</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 17:12</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -18582,7 +18582,13 @@ function savePrenotazione(editId) {
   const existingBooking = editId ? DB.get('bookings').find(b => b.id === editId) : null;
   const originalRoomId = existingBooking ? (existingBooking.originalRoomId || existingBooking.roomId) : roomId;
 
-  const booking = {
+  // FIX IMPORTANTE: questo oggetto veniva prima creato "da zero" con solo i campi del modulo di
+  // modifica — ogni salvataggio di una modifica (es. allungare le date) SOVRASCRIVEVA l'intera
+  // prenotazione, perdendo silenziosamente tutto ciò che non è in questo modulo: dati/foto del
+  // check-in online (componenti), pagamenti già registrati, comunicazioni, registro modifiche,
+  // invio Alloggiati Web, ecc. Ora si parte dalla prenotazione esistente (existingBooking) e si
+  // sovrascrivono solo i campi che il modulo gestisce davvero, mantenendo intatto tutto il resto.
+  const booking = Object.assign({}, existingBooking || {}, {
     id: editId || uid(),
     guestId: finalGuestId,
     guestName: guestName || '(Ospite non specificato)',
@@ -18642,7 +18648,7 @@ function savePrenotazione(editId) {
     // separato "modifiedAt" che invece è giusto aggiorni ad ogni salvataggio (nuovo o modifica).
     createdAt: existingBooking ? (existingBooking.createdAt || new Date().toISOString()) : new Date().toISOString(),
     modifiedAt: new Date().toISOString()
-  };
+  });
 
   const bookings = DB.get('bookings');
   let righeModificaEdit = null; // calcolato qui (serve confrontare col vecchio prima di sovrascrivere),
@@ -20217,7 +20223,7 @@ function openDettaglioPrenotazione(id) {
           ? '<div style="margin-top:18px">' +
               '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Occupanti camera</div>' +
               '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-                '<thead><tr style="color:var(--text3);text-align:left;font-size:11px"><th style="padding:4px 8px 4px 0;font-weight:600">Nome</th><th style="padding:4px 8px;font-weight:600">Età</th><th style="padding:4px 0;font-weight:600">Città di residenza</th></tr></thead>' +
+                '<thead><tr style="color:var(--text3);text-align:left;font-size:11px"><th style="padding:4px 8px 4px 0;font-weight:600">Nome</th><th style="padding:4px 8px;font-weight:600">Età</th><th style="padding:4px 8px;font-weight:600">Città di residenza</th><th style="padding:4px 0;font-weight:600">Documento</th></tr></thead>' +
                 '<tbody>' +
                 b.componenti.map(function(comp){
                   const eta = calcolaEtaAllaData(comp.dataNascita, b.checkin);
@@ -20226,10 +20232,16 @@ function openDettaglioPrenotazione(id) {
                   var luogoResidenza = comp.residenza
                     ? comp.residenza + (provDaMostrare ? ' ('+provDaMostrare+')' : '')
                     : ((comp.statoResidenza && comp.statoResidenza!=='Italia') ? comp.statoResidenza : '—');
+                  var nomeSicuro = (comp.nome||'').replace(/'/g,"\\'")+' '+(comp.cognome||'').replace(/'/g,"\\'");
+                  var docCell = (comp.fotoDocFronte||comp.fotoDocRetro)
+                    ? (comp.fotoDocFronte?'<img src="'+comp.fotoDocFronte+'" onclick="ingrandisciFoto(\''+comp.fotoDocFronte.replace(/'/g,"\\'")+'\',\'Documento — '+nomeSicuro+' (fronte)\')" style="width:30px;height:30px;object-fit:cover;border-radius:5px;border:1px solid var(--border2);cursor:zoom-in;margin-right:3px">':'')+
+                      (comp.fotoDocRetro?'<img src="'+comp.fotoDocRetro+'" onclick="ingrandisciFoto(\''+comp.fotoDocRetro.replace(/'/g,"\\'")+'\',\'Documento — '+nomeSicuro+' (retro)\')" style="width:30px;height:30px;object-fit:cover;border-radius:5px;border:1px solid var(--border2);cursor:zoom-in">':'')
+                    : '<span style="color:var(--text3)">—</span>';
                   return '<tr style="border-top:1px solid var(--border)">' +
                     '<td style="padding:6px 8px 6px 0"><strong>'+(comp.nome||'')+' '+(comp.cognome||'')+'</strong></td>' +
                     '<td style="padding:6px 8px;color:var(--text2)">'+(eta!==null ? eta+' anni' : '—')+'</td>' +
-                    '<td style="padding:6px 0;color:var(--text2)">'+luogoResidenza+'</td>' +
+                    '<td style="padding:6px 8px;color:var(--text2)">'+luogoResidenza+'</td>' +
+                    '<td style="padding:6px 0">'+docCell+'</td>' +
                   '</tr>';
                 }).join('') +
                 '</tbody>' +
@@ -21855,7 +21867,26 @@ function salvaInStoricoOspiti(componenti, dataRiferimento) {
 // ============================================================
 var archivioOspitiFilter = { search: '' };
 
+// Riallinea l'archivio con i check-in arrivati "da fuori" (es. check-in online compilato
+// direttamente dall'ospite, che scrive su Supabase senza passare da salvaCheckin qui in app) —
+// senza questo, quei nominativi restavano invisibili nell'archivio finché qualcuno non riapriva
+// la scheda check-in di quella prenotazione dall'app. Richiamata ad ogni apertura della pagina:
+// è economica (idempotente) perché salvaInStoricoOspiti aggiorna solo se mancante o più recente.
+var _ultimoRiallineoArchivio = 0;
+function riallineaArchivioOspiti() {
+  const ora = Date.now();
+  if (ora - _ultimoRiallineoArchivio < 5000) return; // evita di rifare la scansione ad ogni tasto premuto nella ricerca
+  _ultimoRiallineoArchivio = ora;
+  const bookings = DB.get('bookings') || [];
+  bookings.forEach(function(b){
+    if (b.componenti && b.componenti.length && b.status !== 'cancellata') {
+      salvaInStoricoOspiti(b.componenti, (b.checkinAt ? b.checkinAt.slice(0,10) : null) || b.checkin || today());
+    }
+  });
+}
+
 function getArchivioOspitiFiltrato() {
+  riallineaArchivioOspiti();
   const q = archivioOspitiFilter.search.trim().toLowerCase();
   const storico = (DB.get('storicoOspiti') || []).slice()
     .sort((a,b) => (b._ultimoAggiornamento||'').localeCompare(a._ultimoAggiornamento||''));
