@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 17:50</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 20:05</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -359,6 +359,7 @@ tr:hover td{background:var(--surface2)}
   <div class="nav-item" onclick="navigate('gruppi')" data-page="gruppi">👥 Gruppi &amp; Eventi</div>
   <div class="nav-item" onclick="navigate('fatture')" data-page="fatture">🧾 Fatture</div>
   <div class="nav-item" onclick="navigate('recensioni')" data-page="recensioni">⭐ Recensioni</div>
+  <div class="nav-item" onclick="navigate('messaggi')" data-page="messaggi">💬 Messaggi</div>
   <div class="nav-item" onclick="navigate('arrivi-partenze')" data-page="arrivi-partenze">🗂 Check-in/out</div>
   <div class="nav-item" onclick="navigate('corrispettivi')" data-page="corrispettivi">💶 Corrispettivi</div>
   <div class="nav-item" onclick="navigate('housekeeping')" data-page="housekeeping">🧹 Housekeeping</div>
@@ -430,6 +431,7 @@ tr:hover td{background:var(--surface2)}
   <div id="page-gruppi" class="page"></div>
   <div id="page-fatture" class="page"></div>
   <div id="page-recensioni" class="page"></div>
+  <div id="page-messaggi" class="page"></div>
   <div id="page-arrivi-partenze" class="page" style="display:flex;flex-direction:column">
     <div id="ap-subtoggle"></div>
     <div id="page-checkin"></div>
@@ -11319,7 +11321,7 @@ function navigate(page){
   if(ni)ni.classList.add('active');
   currentPage=page;
   var map={
-    dashboard:renderDashboard,calendario:renderCalendario,prenotazioni:renderPrenotazioni,gruppi:renderGruppiEventi,fatture:renderFatture,recensioni:renderRecensioni,mobilecheckin:renderMobileCheckin,wamassivo:renderWaMassivo,emailmassiva:renderEmailMassiva,
+    dashboard:renderDashboard,calendario:renderCalendario,prenotazioni:renderPrenotazioni,gruppi:renderGruppiEventi,fatture:renderFatture,recensioni:renderRecensioni,messaggi:renderMessaggi,mobilecheckin:renderMobileCheckin,wamassivo:renderWaMassivo,emailmassiva:renderEmailMassiva,
     checkin:renderCheckin,checkout:renderCheckout,'arrivi-partenze':renderArriviPartenze,checkineffettuati:renderCheckinEffettuati,checkouteffettuati:renderCheckoutEffettuati,effettuati:renderEffettuati,planner:renderPlanner,contidasaldare:renderContiDaSaldare,corrispettivi:renderCorrispettiviPage,condizioni:renderCondizioni,revenue:renderRevenue,camere:renderCamere,ospiti:renderOspiti,archivioospiti:renderArchivioOspiti,guidaospiti:renderGuidaOspiti,
     listino:renderListino,livelli:renderLivelliTariffari,tipologie:renderTipologie,tassasoggiorno:renderTassaSoggiorno,preventivi:renderPreventivi,addebitiextra:renderAddebitiExtra,
     housekeeping:renderHousekeeping,previsionale:renderPrevisionale,report:renderReport,biancheria:renderBiancheria,
@@ -15747,6 +15749,163 @@ function renderRecensioni(){
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// MESSAGGI — inbox unificata per parlare direttamente con gli ospiti su
+// Booking.com, Airbnb e gli altri canali collegati tramite Hostex, senza dover
+// aprire i portali uno per uno. Legge/scrive tramite la Edge Function
+// hostex-messaggi (vedi commenti lì per il dettaglio dei dati restituiti da Hostex).
+// ══════════════════════════════════════════════════════════════════════════
+var messaggiCache = [];
+var messaggiCaricamento = false;
+var messaggiConversazioneAperta = null; // ultimo dettaglio conversazione caricato (per la modale)
+
+function messaggiIconaCanale(canale){
+  var c = (canale||'').toLowerCase();
+  if (c.indexOf('booking') > -1) return '🔵 Booking.com';
+  if (c.indexOf('airbnb') > -1) return '🔴 Airbnb';
+  if (c.indexOf('expedia') > -1) return '🟡 Expedia';
+  return '💬 ' + (canale || 'Altro canale');
+}
+
+// Formatta una data/ora ISO (es. "2026-08-30T01:17:09+00:00") in "gg/mm/aaaa hh:mm" italiano.
+function messaggiFmtOra(iso){
+  if (!iso) return '—';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  var pad = function(n){ return (n<10?'0':'')+n; };
+  return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+
+// Cerca tra le prenotazioni già importate da Hostex (stesso externalId) quella collegata a
+// questo reservation_code, così da poter aprire direttamente la prenotazione dalla conversazione.
+function messaggiTrovaPrenotazione(reservationCode){
+  if (!reservationCode) return null;
+  return (DB.get('bookings')||[]).find(function(b){ return b.externalId === reservationCode; }) || null;
+}
+
+function renderMessaggi(){
+  var html = '<div class="page-header"><div><div class="page-title">💬 Messaggi</div>'+
+    '<div class="page-subtitle">Tutte le conversazioni con gli ospiti — Booking.com, Airbnb e gli altri canali — in un unico posto, tramite Hostex</div></div>'+
+    '<button class="btn btn-primary" onclick="messaggiCaricaSubito()" '+(messaggiCaricamento?'disabled':'')+'>'+(messaggiCaricamento?'⏳ Caricamento…':'🔄 Aggiorna')+'</button>'+
+    '</div><div class="page-content">';
+
+  if (!messaggiCache.length && !messaggiCaricamento) {
+    html += '<div class="empty-state"><p>Premi "Aggiorna" per caricare le conversazioni da Hostex.</p></div>';
+  } else if (messaggiCaricamento) {
+    html += '<div class="empty-state"><p>Caricamento in corso…</p></div>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:8px">' +
+      messaggiCache.map(function(c){
+        var nomeOspite = (c.guest && c.guest.name) ? c.guest.name : 'Ospite';
+        var periodo = (c.check_in_date && c.check_out_date) ? (fmtDate(c.check_in_date)+' → '+fmtDate(c.check_out_date)) : '';
+        return '<div class="card" style="padding:12px 16px;cursor:pointer" onclick="messaggiApriConversazione(\''+c.id+'\')">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">'+
+          '<div>'+
+            '<div style="font-weight:700">'+nomeOspite.replace(/</g,'&lt;')+' <span style="font-weight:400;color:var(--text3);font-size:12px">'+messaggiIconaCanale(c.channel_type)+'</span></div>'+
+            '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+(periodo||'Senza prenotazione collegata')+'</div>'+
+          '</div>'+
+          '<div style="text-align:right;font-size:11.5px;color:var(--text3)">Ultimo messaggio<br>'+messaggiFmtOra(c.last_message_at)+'</div>'+
+          '</div></div>';
+      }).join('') +
+    '</div>';
+  }
+  html += '</div>';
+  document.getElementById('page-messaggi').innerHTML = html;
+}
+
+function messaggiCaricaSubito(){
+  var s = DB.getObj('settings', {});
+  if (!s.supabaseUrl) { showToast('Configura prima Supabase in Impostazioni'); return; }
+  messaggiCaricamento = true;
+  renderMessaggi();
+  fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/hostex-messaggi')
+    .then(function(res){ return res.json(); })
+    .then(function(data){
+      messaggiCaricamento = false;
+      if (!data.ok) { showToast('Errore nel caricare i messaggi: '+(data.errore||'sconosciuto')); messaggiCache = []; renderMessaggi(); return; }
+      messaggiCache = data.conversazioni || [];
+      renderMessaggi();
+    })
+    .catch(function(err){
+      messaggiCaricamento = false;
+      showToast('Errore nel caricare i messaggi');
+      console.error('Errore messaggi:', err);
+      renderMessaggi();
+    });
+}
+
+function messaggiApriConversazione(id){
+  var s = DB.getObj('settings', {});
+  if (!s.supabaseUrl) { showToast('Configura prima Supabase in Impostazioni'); return; }
+  showModal('Conversazione', '<div style="text-align:center;padding:20px;color:var(--text3)">Caricamento…</div>', '<button class="btn" onclick="closeModal()">Chiudi</button>');
+  fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/hostex-messaggi?id=' + encodeURIComponent(id))
+    .then(function(res){ return res.json(); })
+    .then(function(data){
+      if (!data.ok) { showToast('Errore nell\'aprire la conversazione: '+(data.errore||'sconosciuto')); closeModal(); return; }
+      messaggiConversazioneAperta = data.conversazione;
+      messaggiRenderConversazione();
+    })
+    .catch(function(err){
+      showToast('Errore nell\'aprire la conversazione');
+      console.error('Errore conversazione:', err);
+      closeModal();
+    });
+}
+
+function messaggiRenderConversazione(){
+  var c = messaggiConversazioneAperta;
+  if (!c) return;
+  var nomeOspite = (c.guest && c.guest.name) ? c.guest.name : 'Ospite';
+
+  // La prenotazione collegata si trova tra le "activities" della conversazione (quella con
+  // activity_type "reservation"), confrontando il suo reservation_code con l'externalId salvato
+  // sulle prenotazioni importate da Hostex.
+  var attivitaPrenotazione = (c.activities||[]).find(function(a){ return a.activity_type === 'reservation' && a.reservation_code; });
+  var prenotazioneCollegata = attivitaPrenotazione ? messaggiTrovaPrenotazione(attivitaPrenotazione.reservation_code) : null;
+
+  var bottonePrenotazione = prenotazioneCollegata
+    ? '<button class="btn btn-sm" onclick="closeModal();openDettaglioPrenotazione(\''+prenotazioneCollegata.id+'\')">📋 Apri prenotazione</button>'
+    : '';
+
+  var righeMessaggi = (c.messages||[]).slice().reverse().map(function(m){
+    var daOspite = m.sender_role === 'guest';
+    var testo = (m.content||'').replace(/</g,'&lt;').replace(/\n/g,'<br>');
+    return '<div style="display:flex;justify-content:'+(daOspite?'flex-start':'flex-end')+';margin-bottom:8px">'+
+      '<div style="max-width:75%;padding:8px 12px;border-radius:10px;font-size:13px;background:'+(daOspite?'var(--surface2)':'var(--accent-light)')+';color:'+(daOspite?'var(--text)':'var(--accent)')+'">'+
+        testo+
+        '<div style="font-size:10.5px;color:var(--text3);margin-top:4px">'+messaggiFmtOra(m.created_at)+'</div>'+
+      '</div></div>';
+  }).join('');
+
+  showModal(
+    nomeOspite + ' — ' + messaggiIconaCanale(c.channel_type),
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:10px">'+bottonePrenotazione+'</div>'+
+    '<div style="max-height:340px;overflow-y:auto;padding:4px 2px">'+(righeMessaggi||'<div style="color:var(--text3);font-size:12.5px">Nessun messaggio</div>')+'</div>'+
+    '<div class="form-group full" style="margin-top:12px"><textarea id="msg-risposta-testo" rows="3" placeholder="Scrivi una risposta…" style="width:100%"></textarea></div>',
+    '<button class="btn" onclick="closeModal()">Chiudi</button>'+
+    '<button class="btn btn-primary" onclick="messaggiInviaRisposta(\''+c.id+'\')">📤 Invia</button>',
+    '520px'
+  );
+}
+
+function messaggiInviaRisposta(conversationId){
+  var testo = (document.getElementById('msg-risposta-testo').value||'').trim();
+  if (!testo) { showToast('Scrivi un messaggio prima di inviare'); return; }
+  var s = DB.getObj('settings', {});
+  fetch(s.supabaseUrl.replace(/\/$/,'') + '/functions/v1/hostex-messaggi', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ conversation_id: conversationId, message: testo })
+  }).then(function(res){ return res.json(); }).then(function(data){
+    if (!data.ok) { showToast('Invio non riuscito: '+(data.errore||'sconosciuto')); return; }
+    showToast('Messaggio inviato');
+    closeModal();
+    messaggiApriConversazione(conversationId); // riapre per mostrare subito il messaggio inviato
+  }).catch(function(err){
+    showToast('Invio non riuscito');
+    console.error('Errore invio messaggio:', err);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // GESTIONE UTENTI & PERMESSI — richiesto da Gian: un accesso Amministratore
 // con accesso completo a tutto, e account "Reception" con permessi decisi e
 // modificabili SOLO dall'amministratore da questa maschera — non fissi nel
@@ -15763,7 +15922,7 @@ function renderRecensioni(){
 var PAGINE_PERMESSO = {
   planner:'planner', calendario:'calendario', arrivi:'arrivi', 'arrivi-partenze':'arrivi-partenze', housekeeping:'housekeeping', biancheria:'biancheria', puliziamobile:'puliziamobile',
   mobilecheckin:'mobilecheckin', prenotazioni:'prenotazioni', ospiti:'ospiti', archivioospiti:'archivioospiti', preventivi:'preventivi', wamassivo:'wamassivo', emailmassiva:'emailmassiva',
-  gruppi:'gruppi', fatture:'fatture', recensioni:'recensioni',
+  gruppi:'gruppi', fatture:'fatture', recensioni:'recensioni', messaggi:'messaggi',
   report:'report', reportpasti:'reportpasti', previsionale:'previsionale', revenue:'revenue',
   corrispettivi:'corrispettivi', contidasaldare:'contidasaldare',
   listino:'listino', livelli:'livelli', tipologie:'tipologie', tassasoggiorno:'tassasoggiorno', camere:'camere',
@@ -15786,6 +15945,7 @@ var VOCI_PERMESSO = [
   {k:'ospiti', l:'👥 Ospiti'},
   {k:'archivioospiti', l:'🗂 Archivio ospiti'},
   {k:'guidaospiti', l:'🗺️ Guida ospiti'},
+  {k:'messaggi', l:'💬 Messaggi'},
   {k:'gruppi', l:'👥 Gruppi & Eventi'},
   {k:'corrispettivi', l:'💶 Corrispettivi'},
   {k:'contidasaldare', l:'💰 Conti da saldare'},
