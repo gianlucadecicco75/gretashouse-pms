@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 17:12</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 17:22</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -21872,6 +21872,67 @@ var archivioOspitiFilter = { search: '' };
 // senza questo, quei nominativi restavano invisibili nell'archivio finché qualcuno non riapriva
 // la scheda check-in di quella prenotazione dall'app. Richiamata ad ogni apertura della pagina:
 // è economica (idempotente) perché salvaInStoricoOspiti aggiorna solo se mancante o più recente.
+// Riporta nella scheda del cliente (tabella "guests", pagina Ospiti) i dati anagrafici raccolti col
+// check-in — sia per l'intestatario della prenotazione (completa la sua scheda cliente con residenza/
+// documento se mancanti) sia per gli altri componenti del soggiorno (crea/aggiorna una scheda a parte
+// per ciascuno, cercandola per nome così da non duplicarla ad ogni riallineamento). Non sovrascrive MAI
+// un campo che lo staff ha già compilato a mano — riempie solo quelli vuoti.
+const CAMPI_ANAGRAFICA_DA_CHECKIN = ['cognome','nome','sesso','dataNascita','luogoNascita','provNascita','cittadinanza','residenza','indirizzo','cap','tipoDoc','numDoc','enteDoc','luogoDoc'];
+function completaGuestConComponente(guest, comp) {
+  let cambiato = false;
+  CAMPI_ANAGRAFICA_DA_CHECKIN.forEach(function(campo){
+    if (!guest[campo] && comp[campo]) { guest[campo] = comp[campo]; cambiato = true; }
+  });
+  if (!guest.nazionalita && comp.cittadinanza) { guest.nazionalita = comp.cittadinanza; cambiato = true; }
+  if (!guest.citta && comp.residenza) { guest.citta = comp.residenza; cambiato = true; }
+  if (!guest.provincia && comp.provResidenza) { guest.provincia = comp.provResidenza; cambiato = true; }
+  return cambiato;
+}
+function riallineaAnagraficaOspitiConCheckin(bookings) {
+  const guests = DB.get('guests') || [];
+  const indiceGuests = {};
+  guests.forEach(function(g, idx){
+    const chiave = (g.cognome && g.nome) ? chiaveStorico(g.cognome, g.nome) : chiaveStorico('', g.name);
+    if (!(chiave in indiceGuests)) indiceGuests[chiave] = idx; // se ci sono doppioni tiene il primo
+  });
+  let cambiato = false;
+  bookings.forEach(function(b){
+    if (!b.componenti || !b.componenti.length || b.status === 'cancellata') return;
+    b.componenti.forEach(function(c, i){
+      if (!c.cognome || !c.nome) return;
+      let g = null;
+      if (i === 0 && b.guestId) g = guests.find(function(x){ return x.id === b.guestId; });
+      if (!g) {
+        const chiave = chiaveStorico(c.cognome, c.nome);
+        const idx = indiceGuests[chiave];
+        if (idx !== undefined) g = guests[idx];
+      }
+      if (g) {
+        if (completaGuestConComponente(g, c)) cambiato = true;
+      } else {
+        const nuovo = { id: uid(), name: (c.nome+' '+c.cognome).trim(), email:'', phone:'', tipoCliente:'privato', notes:'' };
+        completaGuestConComponente(nuovo, c);
+        guests.push(nuovo);
+        indiceGuests[chiaveStorico(c.cognome, c.nome)] = guests.length - 1;
+        cambiato = true;
+      }
+    });
+  });
+  if (cambiato) {
+    invalidateGuestDatalistCache();
+    if (supabaseReady && supabaseClient) {
+      _guestsCache = guests;
+      guests.forEach(function(g){
+        supabaseClient.from('guests').upsert(guestToSupabase(g)).then(function(res){
+          if (res.error) console.error('Errore riallineamento anagrafica ospite:', res.error);
+        });
+      });
+    } else {
+      DB.set('guests', guests);
+    }
+  }
+}
+
 var _ultimoRiallineoArchivio = 0;
 function riallineaArchivioOspiti() {
   const ora = Date.now();
@@ -21883,6 +21944,7 @@ function riallineaArchivioOspiti() {
       salvaInStoricoOspiti(b.componenti, (b.checkinAt ? b.checkinAt.slice(0,10) : null) || b.checkin || today());
     }
   });
+  riallineaAnagraficaOspitiConCheckin(bookings);
 }
 
 function getArchivioOspitiFiltrato() {
@@ -24240,6 +24302,7 @@ function confermaUnioneDuplicati() {
 }
 
 function renderOspiti() {
+  riallineaArchivioOspiti();
   const allGuests = DB.get('guests');
   const filtered = allGuests
     .filter(g => !ospiteFilter || g.name.toLowerCase().includes(ospiteFilter.toLowerCase()) || (g.email||'').toLowerCase().includes(ospiteFilter.toLowerCase()))
