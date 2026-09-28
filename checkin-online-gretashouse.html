@@ -173,7 +173,10 @@ function renderForm(propertyName, b) {
         '<div class="field"><label>Sesso</label><select id="g-sesso-'+i+'"><option value="M" '+(c.sesso!=='F'?'selected':'')+'>M</option><option value="F" '+(c.sesso==='F'?'selected':'')+'>F</option></select></div>' +
         '<div class="field"><label>Data di nascita</label><input type="date" id="g-nascita-'+i+'" value="'+(c.dataNascita||'')+'"></div>' +
       '</div>' +
-      '<div class="field"><label>Cittadinanza</label><input type="text" id="g-cittadinanza-'+i+'" value="'+(c.cittadinanza||'Italia')+'"></div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>Luogo di nascita</label><input type="text" id="g-luogonascita-'+i+'" value="'+(c.luogoNascita||'')+'" placeholder="Es. Otranto"></div>' +
+        '<div class="field"><label>Cittadinanza</label><input type="text" id="g-cittadinanza-'+i+'" value="'+(c.cittadinanza||'Italia')+'"></div>' +
+      '</div>' +
       '<div class="row2">' +
         '<div class="field"><label>Stato di residenza</label><input type="text" id="g-statores-'+i+'" value="'+(c.statoResidenza||c.cittadinanza||'Italia')+'"></div>' +
         '<div class="field"><label>Comune di residenza</label><input type="text" id="g-residenza-'+i+'" value="'+(c.residenza||'')+'" placeholder="Es. Otranto"></div>' +
@@ -391,6 +394,7 @@ async function inviaCheckin() {
       nome: nome,
       sesso: (document.getElementById('g-sesso-'+i)||{value:'M'}).value,
       dataNascita: (document.getElementById('g-nascita-'+i)||{value:''}).value,
+      luogoNascita: (document.getElementById('g-luogonascita-'+i)||{value:''}).value.trim(),
       cittadinanza: (document.getElementById('g-cittadinanza-'+i)||{value:''}).value.trim(),
       statoResidenza: (document.getElementById('g-statores-'+i)||{value:''}).value.trim(),
       residenza: (document.getElementById('g-residenza-'+i)||{value:''}).value.trim(),
