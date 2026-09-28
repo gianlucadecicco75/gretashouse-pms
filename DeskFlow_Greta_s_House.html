@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 21:15</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 21:48</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -14208,6 +14208,7 @@ function renderDashboard() {
     var colazioniOggi = presentiIeriNotte.reduce(function(s,b){ return s + (b.colazioneInclusa!==false ? (Number(b.adults||1)+Number(b.children||0)) : 0); }, 0);
     var cfgDash = DB.getObj('settings', {});
     var isFreshPC = !cfgDash.supabaseUrl || !cfgDash.supabaseKey;
+    if(_revMeteoCache===null){ _revCaricaMeteo(); } // parte in background, ridisegna da sola quando pronto
 
     var ieriTod = addDays(tod, -1);
     var revenueIeri = fatturatoDelGiorno(ieriTod);
@@ -14280,6 +14281,21 @@ function renderDashboard() {
       '<div id="dash-sitestats-body"><div style="font-size:13px;color:var(--text3)">Caricamento…</div></div>' +
       '<div style="margin-top:8px"><span onclick="navigate(\'statistichesito\')" style="cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:600">Vedi tutte le statistiche →</span></div>'
     );
+    var cardMeteo = _dashCardShell('#0284c7', '🌤 Meteo', '#e0f2fe', '🌤',
+      (_revMeteoCache===null
+        ? '<div style="font-size:13px;color:var(--text3)">Caricamento previsioni…</div>'
+        : '<div style="display:flex;gap:18px">' +
+          [{lbl:'Oggi', ds:today()}, {lbl:'Domani', ds:addDays(today(),1)}, {lbl:'Dopodomani', ds:addDays(today(),2)}].map(function(g){
+            var m = meteoInfoPerData(g.ds);
+            return '<div style="text-align:center">' +
+              '<div style="font-size:12px;color:var(--text3);margin-bottom:4px">'+g.lbl+'</div>' +
+              (m
+                ? '<div style="font-size:22px">'+(METEO_ETICHETTE[m.code]||'—').split(' ')[0]+'</div><div style="font-size:15px;font-weight:700">'+Math.round(m.temp)+'°C</div>'
+                : '<div style="font-size:12px;color:var(--text3)">—</div>')+
+            '</div>';
+          }).join('') +
+        '</div>')
+    );
 
     var html = (isFreshPC ? (
       '<div style="margin:16px;padding:16px 18px;background:#eaf2ff;border:1px solid #bcd6ff;border-radius:10px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">' +
@@ -14303,7 +14319,7 @@ function renderDashboard() {
       '</div></div>' +
       '<div class="page-content">' +
       '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px">' + card1 + card2 + card3 + '</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px">' + cardOccupazione + cardStatisticheSito + '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px">' + cardOccupazione + cardStatisticheSito + cardMeteo + '</div>' +
       '<div class="card" style="margin-bottom:14px">' +
         '<div class="card-header"><span class="card-title">🆕 Nuove prenotazioni del '+fmtDate(tod)+' ('+nuovePrenLista.length+')</span></div>' +
         (nuovePrenLista.length===0
@@ -30257,11 +30273,22 @@ var METEO_ETICHETTE = {
   85:'🌨 Rovesci di neve',86:'🌨 Rovesci di neve forti',
   95:'⛈ Temporale',96:'⛈ Temporale con grandine',99:'⛈ Temporale con grandine forte'
 };
+// Posizione della struttura: presa da Impostazioni → Struttura (s.lat/s.lon), così se un giorno
+// cambia struttura basta aggiornarla lì una volta sola. Se non è ancora stata impostata, si usano
+// le coordinate di partenza salvate a suo tempo in Prezzo consigliato come ripiego.
+function meteoCoordinateStruttura(){
+  var s=DB.getObj('settings',{});
+  var cfg=getRevenueConfig();
+  var lat=(typeof s.lat==='number' && !isNaN(s.lat)) ? s.lat : cfg.meteoLat;
+  var lon=(typeof s.lon==='number' && !isNaN(s.lon)) ? s.lon : cfg.meteoLon;
+  return {lat:lat, lon:lon};
+}
 async function _revCaricaMeteo(){
   var cfg=getRevenueConfig();
-  if(!cfg.meteoAttivo || !cfg.meteoLat || !cfg.meteoLon){ _revMeteoCache={}; return; }
+  var pos=meteoCoordinateStruttura();
+  if(!cfg.meteoAttivo || !pos.lat || !pos.lon){ _revMeteoCache={}; return; }
   try{
-    var url='https://api.open-meteo.com/v1/forecast?latitude='+cfg.meteoLat+'&longitude='+cfg.meteoLon+'&daily=weathercode,temperature_2m_max,precipitation_sum&timezone=Europe%2FRome&forecast_days=16';
+    var url='https://api.open-meteo.com/v1/forecast?latitude='+pos.lat+'&longitude='+pos.lon+'&daily=weathercode,temperature_2m_max,precipitation_sum&timezone=Europe%2FRome&forecast_days=16';
     var res=await fetch(url);
     var data=await res.json();
     var cache={};
@@ -30273,6 +30300,7 @@ async function _revCaricaMeteo(){
     _revMeteoCache=cache;
   } catch(e){ _revMeteoCache={}; }
   if(currentPage==='revenue') renderRevenue();
+  if(currentPage==='dashboard') renderDashboard();
 }
 // Info meteo per una data (null se non disponibile — troppo lontana o non ancora caricata)
 function meteoInfoPerData(ds){
@@ -30330,7 +30358,9 @@ function renderRevenue() {
   var cfg=getRevenueConfig();
   var ccfg=DB.getObj('settings',{currency:'€'});
   if(!revPeriodoDal){ revPeriodoDal=cfg.periodoDal||today(); }
+  if(revPeriodoDal<today()){ revPeriodoDal=today(); } // niente date passate nel range dei prezzi consigliati
   if(!revPeriodoAl){ revPeriodoAl=cfg.periodoAl||addDays(revPeriodoDal,29); }
+  if(revPeriodoAl<revPeriodoDal){ revPeriodoAl=addDays(revPeriodoDal,29); }
   if(_revRicercheCache===null){ _revCaricaRicerche(); } // parte in background, ridisegna da sola quando pronta
   if(_revMeteoCache===null){ _revCaricaMeteo(); } // idem, per il meteo previsto
 
@@ -30360,10 +30390,10 @@ function renderRevenue() {
             <input type="number" id="rev-weekend" value="${cfg.weekendBoost}" step="1">
           </div>
           <div class="form-group"><label>Periodo dal</label>
-            <input type="date" id="rev-dal" value="${revPeriodoDal}" onchange="revPeriodoDal=this.value; renderRevenue()">
+            <input type="date" id="rev-dal" value="${revPeriodoDal}" min="${today()}" onchange="revPeriodoDal=this.value; renderRevenue()">
           </div>
           <div class="form-group"><label>al</label>
-            <input type="date" id="rev-al" value="${revPeriodoAl}" onchange="revPeriodoAl=this.value; renderRevenue()">
+            <input type="date" id="rev-al" value="${revPeriodoAl}" min="${revPeriodoDal}" onchange="revPeriodoAl=this.value; renderRevenue()">
           </div>
         </div>
         <button class="btn btn-sm btn-primary" onclick="salvaRevenueBase()">💾 Salva</button>
@@ -30435,16 +30465,10 @@ function renderRevenue() {
 
       <div class="card" style="max-width:900px">
         <div class="card-header"><span class="card-title">🌤 Meteo previsto → variazione prezzo</span></div>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Previsioni reali (Open-Meteo, gratuito) per la zona della struttura: tempo bello spinge leggermente il prezzo su, pioggia/maltempo lo spinge giù. Disponibile solo per i prossimi ~16 giorni — oltre, non viene applicato nessun aggiustamento.${_revMeteoCache===null ? ' <span style="color:var(--amber)">Caricamento previsioni in corso…</span>' : ''}</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Previsioni reali (Open-Meteo, gratuito) per la posizione della struttura impostata in <strong>Impostazioni → Struttura</strong> (Latitudine/Longitudine) — così se un giorno cambi struttura basta aggiornarla lì una volta sola. Tempo bello spinge leggermente il prezzo su, pioggia/maltempo lo spinge giù. Disponibile solo per i prossimi ~16 giorni — oltre, non viene applicato nessun aggiustamento.${_revMeteoCache===null ? ' <span style="color:var(--amber)">Caricamento previsioni in corso…</span>' : ''}</div>
         <div class="form-grid">
           <div class="form-group"><label>Attivo</label>
             <select id="rev-meteo-attivo"><option value="1" ${cfg.meteoAttivo?'selected':''}>Sì</option><option value="0" ${!cfg.meteoAttivo?'selected':''}>No</option></select>
-          </div>
-          <div class="form-group"><label>Latitudine</label>
-            <input type="number" id="rev-meteo-lat" value="${cfg.meteoLat}" step="0.001">
-          </div>
-          <div class="form-group"><label>Longitudine</label>
-            <input type="number" id="rev-meteo-lon" value="${cfg.meteoLon}" step="0.001">
           </div>
           <div class="form-group"><label>Variazione se sole (%)</label>
             <input type="number" id="rev-meteo-sole" value="${cfg.meteoAdjSole}" step="1">
@@ -30555,17 +30579,13 @@ function salvaRevenueBase(){
 function salvaMeteoRevenue(){
   var cfg=getRevenueConfig();
   var attivoNuovo = document.getElementById('rev-meteo-attivo').value==='1';
-  var latNuova = parseFloat(document.getElementById('rev-meteo-lat').value)||cfg.meteoLat;
-  var lonNuova = parseFloat(document.getElementById('rev-meteo-lon').value)||cfg.meteoLon;
-  var posizioneCambiata = (latNuova!==cfg.meteoLat || lonNuova!==cfg.meteoLon || attivoNuovo!==cfg.meteoAttivo);
+  var statoCambiato = (attivoNuovo!==cfg.meteoAttivo);
   cfg.meteoAttivo = attivoNuovo;
-  cfg.meteoLat = latNuova;
-  cfg.meteoLon = lonNuova;
   cfg.meteoAdjSole = parseFloat(document.getElementById('rev-meteo-sole').value)||0;
   cfg.meteoAdjPioggia = parseFloat(document.getElementById('rev-meteo-pioggia').value)||0;
   saveRevenueConfig(cfg);
   showToast('Impostazioni meteo salvate');
-  if (posizioneCambiata) { _revMeteoCache=null; } // ricarica le previsioni se è cambiata posizione o stato attivo/non attivo
+  if (statoCambiato) { _revMeteoCache=null; } // ricarica le previsioni se è cambiato lo stato attivo/non attivo
   renderRevenue();
 }
 function aggiungiSogliaRevenue(chiave){
@@ -30943,6 +30963,15 @@ function renderImpostazioni() {
             <div class="form-group">
               <label>Città</label>
               <input type="text" id="s-city" value="${s.city||''}" placeholder="Milano">
+            </div>
+            <div class="form-group">
+              <label>Latitudine</label>
+              <input type="number" id="s-lat" value="${s.lat!=null?s.lat:meteoCoordinateStruttura().lat}" step="0.001" placeholder="es. 40.148">
+            </div>
+            <div class="form-group">
+              <label>Longitudine</label>
+              <input type="number" id="s-lon" value="${s.lon!=null?s.lon:meteoCoordinateStruttura().lon}" step="0.001" placeholder="es. 18.486">
+              <div style="font-size:11px;color:var(--text3);margin-top:3px">Usate per il meteo reale in "🎯 Prezzo consigliato" — presi da Google Maps: tasto destro sul punto esatto della struttura, poi copia i due numeri in alto.</div>
             </div>
             <div class="form-group">
               <label>CIN (Codice Identificativo Nazionale)</label>
@@ -31731,6 +31760,12 @@ function saveImpostazioni() {
   s.hkGiorniCambioBiancheria = parseInt(document.getElementById('s-hk-cambio-biancheria')?.value)||3;
   s.address       = document.getElementById('s-address').value;
   s.city          = document.getElementById('s-city').value;
+  var latNuova = document.getElementById('s-lat')?.value;
+  var lonNuova = document.getElementById('s-lon')?.value;
+  var posizioneCambiata = (latNuova!=='' && parseFloat(latNuova)!==s.lat) || (lonNuova!=='' && parseFloat(lonNuova)!==s.lon);
+  s.lat = latNuova!=='' ? parseFloat(latNuova) : null;
+  s.lon = lonNuova!=='' ? parseFloat(lonNuova) : null;
+  if (posizioneCambiata) { _revMeteoCache=null; } // la posizione della struttura è cambiata: ricarica le previsioni meteo
   s.cin           = document.getElementById('s-cin').value;
   s.provincia     = document.getElementById('s-prov').value;
   s.piva          = document.getElementById('s-piva').value;
