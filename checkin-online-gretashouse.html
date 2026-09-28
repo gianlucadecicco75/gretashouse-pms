@@ -82,6 +82,15 @@
   .guide-appliance .ga-instr { font-size:12.5px; color:#6b5b58; line-height:1.5; white-space:pre-wrap; }
   .guide-appliance .ga-photos img { width:60px; height:60px; object-fit:cover; border-radius:6px; margin:4px 4px 0 0; }
   .guide-footer { font-size:11.5px; color:#9a8b88; text-align:center; margin-top:14px; }
+
+  .field-opt { font-weight:400; text-transform:none; letter-spacing:0; color:#b3a7a4; font-size:10.5px; }
+  .doc-photos { margin-top:6px; }
+  .doc-photos .row2 { gap:8px; }
+  .doc-photo-slot { border:1.5px dashed #ddd0cd; border-radius:10px; text-align:center; padding:10px 6px; cursor:pointer; background:#fbf8f7; position:relative; }
+  .doc-photo-slot input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .doc-photo-slot .dp-label { font-size:11px; color:#8a7a77; font-weight:700; }
+  .doc-photo-slot .dp-hint { font-size:10px; color:#b3a7a4; margin-top:2px; }
+  .doc-photo-slot img { max-width:100%; max-height:90px; border-radius:6px; margin-top:6px; display:block; margin-left:auto; margin-right:auto; }
 </style>
 </head>
 <body>
@@ -115,6 +124,7 @@ function escHtml(s) {
 
 let prenotazione = null;
 let token = '';
+let fotoDocumenti = {}; // { "0-fronte": "data:image/...", "0-retro": "...", "1-fronte": ... }
 
 async function carica() {
   token = paramToken();
@@ -145,6 +155,10 @@ function renderForm(propertyName, b) {
   const persone = (b.adults || 1) + (b.children || 0);
   const componentiEsistenti = b.componenti || [];
   const giaFatto = (b.status === 'check-in' && componentiEsistenti.length >= persone);
+  componentiEsistenti.forEach(function(c, i){
+    if (c.fotoDocFronte) fotoDocumenti[i+'-fronte'] = c.fotoDocFronte;
+    if (c.fotoDocRetro) fotoDocumenti[i+'-retro'] = c.fotoDocRetro;
+  });
 
   let guestFields = '';
   for (let i = 0; i < persone; i++) {
@@ -161,12 +175,36 @@ function renderForm(propertyName, b) {
       '</div>' +
       '<div class="field"><label>Cittadinanza</label><input type="text" id="g-cittadinanza-'+i+'" value="'+(c.cittadinanza||'Italia')+'"></div>' +
       '<div class="row2">' +
-        '<div class="field"><label>Tipo documento</label><select id="g-tipodoc-'+i+'">' +
+        '<div class="field"><label>Stato di residenza</label><input type="text" id="g-statores-'+i+'" value="'+(c.statoResidenza||c.cittadinanza||'Italia')+'"></div>' +
+        '<div class="field"><label>Comune di residenza</label><input type="text" id="g-residenza-'+i+'" value="'+(c.residenza||'')+'" placeholder="Es. Otranto"></div>' +
+      '</div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>Indirizzo <span class="field-opt">(facoltativo)</span></label><input type="text" id="g-indirizzo-'+i+'" value="'+(c.indirizzo||'')+'" placeholder="Via, numero civico"></div>' +
+        '<div class="field"><label>CAP <span class="field-opt">(facoltativo)</span></label><input type="text" id="g-cap-'+i+'" value="'+(c.cap||'')+'"></div>' +
+      '</div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>Tipo documento'+(i===0?'':' <span class="field-opt">(facoltativo)</span>')+'</label><select id="g-tipodoc-'+i+'">' +
+          '<option value="" '+(!c.tipoDoc?'selected':'')+'>—</option>' +
           '<option value="IDELE" '+(c.tipoDoc==='IDELE'?'selected':'')+'>Carta d\'identità</option>' +
           '<option value="PASOR" '+(c.tipoDoc==='PASOR'?'selected':'')+'>Passaporto</option>' +
           '<option value="PATEN" '+(c.tipoDoc==='PATEN'?'selected':'')+'>Patente</option>' +
         '</select></div>' +
-        '<div class="field"><label>N. documento</label><input type="text" id="g-numdoc-'+i+'" value="'+(c.numDoc||'')+'"></div>' +
+        '<div class="field"><label>N. documento'+(i===0?'':' <span class="field-opt">(facoltativo)</span>')+'</label><input type="text" id="g-numdoc-'+i+'" value="'+(c.numDoc||'')+'"></div>' +
+      '</div>' +
+      '<div class="doc-photos">' +
+        '<label style="display:block;font-size:11.5px;font-weight:700;color:#6b5b58;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">Foto documento <span class="field-opt" style="text-transform:none">(facoltativo)</span></label>' +
+        '<div class="row2">' +
+          '<div class="doc-photo-slot" id="dp-fronte-box-'+i+'">' +
+            '<input type="file" accept="image/*" capture="environment" onchange="caricaFotoDoc(this,'+i+',\'fronte\')">' +
+            '<div class="dp-label">📷 Fronte</div><div class="dp-hint">tocca per scattare/caricare</div>' +
+            '<img id="dp-fronte-img-'+i+'" style="display:'+(c.fotoDocFronte?'block':'none')+'" src="'+(c.fotoDocFronte||'')+'">' +
+          '</div>' +
+          '<div class="doc-photo-slot" id="dp-retro-box-'+i+'">' +
+            '<input type="file" accept="image/*" capture="environment" onchange="caricaFotoDoc(this,'+i+',\'retro\')">' +
+            '<div class="dp-label">📷 Retro</div><div class="dp-hint">tocca per scattare/caricare</div>' +
+            '<img id="dp-retro-img-'+i+'" style="display:'+(c.fotoDocRetro?'block':'none')+'" src="'+(c.fotoDocRetro||'')+'">' +
+          '</div>' +
+        '</div>' +
       '</div>' +
     '</div>';
   }
@@ -267,6 +305,44 @@ function initFirma() {
   canvas.addEventListener('touchend', end);
 }
 
+/* ========== Foto documento (fronte/retro), ridimensionate prima di essere inviate ========== */
+function ridimensionaFotoDoc(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var maxLato = 1400;
+        var w = img.width, h = img.height;
+        if (w > maxLato || h > maxLato) {
+          if (w > h) { h = Math.round(h * maxLato / w); w = maxLato; }
+          else { w = Math.round(w * maxLato / h); h = maxLato; }
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function caricaFotoDoc(input, i, lato) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    var dataUrl = await ridimensionaFotoDoc(file);
+    fotoDocumenti[i + '-' + lato] = dataUrl;
+    var img = document.getElementById('dp-' + lato + '-img-' + i);
+    if (img) { img.src = dataUrl; img.style.display = 'block'; }
+  } catch (e) {
+    alert('Impossibile caricare la foto — riprova.');
+  }
+}
+
 function pulisciFirma() {
   const canvas = document.getElementById('sig-canvas');
   if (!canvas || !sigCtx) return;
@@ -300,14 +376,26 @@ async function inviaCheckin() {
       alert('Compila almeno cognome e nome per ogni ospite (ospite ' + (i+1) + ' mancante).');
       return;
     }
+    var tipoDoc = (document.getElementById('g-tipodoc-'+i)||{value:''}).value;
+    var numDoc = (document.getElementById('g-numdoc-'+i)||{value:''}).value.trim();
+    if (i === 0 && (!tipoDoc || !numDoc)) {
+      alert('Per l\'intestatario della prenotazione (ospite 1) sono obbligatori tipo e numero di documento.');
+      return;
+    }
     componenti.push({
       cognome: cognome,
       nome: nome,
       sesso: (document.getElementById('g-sesso-'+i)||{value:'M'}).value,
       dataNascita: (document.getElementById('g-nascita-'+i)||{value:''}).value,
       cittadinanza: (document.getElementById('g-cittadinanza-'+i)||{value:''}).value.trim(),
-      tipoDoc: (document.getElementById('g-tipodoc-'+i)||{value:''}).value,
-      numDoc: (document.getElementById('g-numdoc-'+i)||{value:''}).value.trim(),
+      statoResidenza: (document.getElementById('g-statores-'+i)||{value:''}).value.trim(),
+      residenza: (document.getElementById('g-residenza-'+i)||{value:''}).value.trim(),
+      indirizzo: (document.getElementById('g-indirizzo-'+i)||{value:''}).value.trim(),
+      cap: (document.getElementById('g-cap-'+i)||{value:''}).value.trim(),
+      tipoDoc: tipoDoc,
+      numDoc: numDoc,
+      fotoDocFronte: fotoDocumenti[i+'-fronte'] || '',
+      fotoDocRetro: fotoDocumenti[i+'-retro'] || '',
     });
   }
 
