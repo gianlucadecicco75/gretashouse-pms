@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 22:38</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 22:52</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -14226,13 +14226,13 @@ function renderDashboard() {
     var nuovePrenSettimana = bookings.filter(function(b){ return b.createdAt && settimanaTod.indexOf(b.createdAt.slice(0,10))>=0; }).length;
     var oraAgg = new Date().toLocaleString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-    function _dashCardShell(colore, titolo, iconaSfondo, icona, corpo) {
+    function _dashCardShell(colore, titolo, iconaSfondo, icona, corpo, azioneAggiorna, titoloAggiorna) {
       return '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:10px;border-top:4px solid '+colore+';padding:16px 18px;flex:1;min-width:280px;display:flex;flex-direction:column">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
           '<div style="font-size:13px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">'+titolo+'</div>' +
           '<div style="display:flex;align-items:center;gap:8px">' +
             '<div style="width:36px;height:36px;border-radius:50%;background:'+iconaSfondo+';display:flex;align-items:center;justify-content:center;font-size:17px">'+icona+'</div>' +
-            '<span onclick="renderDashboard()" title="Aggiorna" style="cursor:pointer;color:var(--text3);font-size:16px">↻</span>' +
+            '<span onclick="'+(azioneAggiorna||'renderDashboard()')+'" title="'+(titoloAggiorna||'Aggiorna')+'" style="cursor:pointer;color:var(--text3);font-size:16px">↻</span>' +
           '</div>' +
         '</div>' +
         corpo +
@@ -14296,7 +14296,8 @@ function renderDashboard() {
                 : '<div style="font-size:12px;color:var(--text3)">—</div>')+
             '</div>';
           }).join('') +
-        '</div>')
+        '</div>'),
+      'apriMeteoCompleto()', 'Meteo completo'
     );
 
     var html = (isFreshPC ? (
@@ -30317,6 +30318,45 @@ function meteoAdjPerData(ds, cfg){
   if(METEO_CODICI_PIOGGIA.indexOf(m.code)>=0) return parseFloat(cfg.meteoAdjPioggia)||0;
   if(METEO_CODICI_SOLE.indexOf(m.code)>=0) return parseFloat(cfg.meteoAdjSole)||0;
   return 0;
+}
+
+// Apre una finestra con le previsioni meteo estese (fino a ~16 giorni, quelle scaricate per il
+// Prezzo consigliato) e dei link rapidi a siti meteo generali per un dettaglio ancora maggiore
+// (radar, ora per ora, ecc.), per la zona della struttura.
+function apriMeteoCompleto(){
+  if(_revMeteoCache===null){ _revCaricaMeteo(); showToast('Carico le previsioni…'); return; }
+  var s = DB.getObj('settings', {});
+  var cfg = getRevenueConfig();
+  var pos = meteoCoordinateStruttura();
+  var localita = s.city || 'Otranto';
+
+  var giorni = Object.keys(_revMeteoCache).sort();
+  var righe = giorni.map(function(ds){
+    var m=_revMeteoCache[ds];
+    var dLabel=parseLD(ds).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+    return '<tr>'+
+      '<td>'+dLabel+'</td>'+
+      '<td>'+(METEO_ETICHETTE[m.code]||'—')+'</td>'+
+      '<td style="text-align:right">'+Math.round(m.temp)+'°C</td>'+
+      '<td style="text-align:right">'+(m.pioggia!=null?m.pioggia+' mm':'—')+'</td>'+
+      '</tr>';
+  }).join('');
+
+  var linkGoogle = 'https://www.google.com/search?q=' + encodeURIComponent('meteo '+localita);
+  var linkIlMeteo = 'https://www.ilmeteo.it/meteo/' + encodeURIComponent(localita);
+  var link3bMeteo = 'https://www.3bmeteo.com/meteo/' + encodeURIComponent(localita.toLowerCase().replace(/\s+/g,'-'));
+
+  showModal('🌤 Meteo — '+localita,
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:12px">Previsioni per le coordinate impostate in Impostazioni → Struttura ('+pos.lat+', '+pos.lon+'). Per un dettaglio ancora maggiore (ora per ora, radar, allerte), apri uno dei siti meteo qui sotto.</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'+
+      '<a class="btn btn-sm" href="'+linkGoogle+'" target="_blank" rel="noopener">🔎 Google Meteo</a>'+
+      '<a class="btn btn-sm" href="'+linkIlMeteo+'" target="_blank" rel="noopener">🌦 iLMeteo.it</a>'+
+      '<a class="btn btn-sm" href="'+link3bMeteo+'" target="_blank" rel="noopener">☁️ 3BMeteo</a>'+
+    '</div>'+
+    '<div style="max-height:340px;overflow-y:auto"><table style="width:100%;font-size:12.5px"><thead><tr><th>Giorno</th><th>Condizioni</th><th style="text-align:right">Temp.</th><th style="text-align:right">Pioggia</th></tr></thead><tbody>'+righe+'</tbody></table></div>',
+    '<button class="btn" onclick="closeModal()">Chiudi</button>',
+    '480px'
+  );
 }
 
 // Calcola il prezzo consigliato per una camera in una data, con il dettaglio del calcolo
