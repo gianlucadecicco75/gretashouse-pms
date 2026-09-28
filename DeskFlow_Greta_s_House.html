@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 22:58</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 23:08</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -30412,11 +30412,17 @@ function cambiaRevTabDal(v){
   if(!revTabAl || revTabAl<v || revTabAl>ultimo) revTabAl=ultimo;
   renderRevenue();
 }
+// BUG TROVATO E CORRETTO: il campo "Al" aveva un limite "max" fissato alla fine del mese di "Dal",
+// che nel calendario del browser impediva fisicamente di navigare o scegliere un mese successivo
+// (sembrava "bloccato" su settembre). Ora "Al" è libero quanto "Dal": se scegli una data in un
+// mese diverso, è l'intero intervallo a spostarsi su quel mese, non il contrario.
 function cambiaRevTabAl(v){
-  var ultimo=ultimoGiornoMese(revTabDal);
-  var primoDelMese=revTabDal.slice(0,7)+'-01';
-  if(v<revTabDal) v=revTabDal;
-  if(v>ultimo) v=ultimo;
+  if(v<today()) v=today(); // niente date passate
+  if(v<revTabDal || v>ultimoGiornoMese(revTabDal)){
+    // La data scelta è fuori dal mese di "Dal": sposta tutto il range sul mese della data scelta.
+    revTabDal = v.slice(0,7)+'-01';
+    if(revTabDal<today()) revTabDal=today();
+  }
   revTabAl=v;
   renderRevenue();
 }
@@ -30641,7 +30647,7 @@ function renderRevenue() {
             <input type="date" value="${revTabDal}" min="${today()}" onchange="cambiaRevTabDal(this.value)">
           </div>
           <div class="form-group" style="margin:0"><label style="font-size:11px">Al</label>
-            <input type="date" value="${revTabAl}" min="${revTabDal}" max="${ultimoGiornoMese(revTabDal)}" onchange="cambiaRevTabAl(this.value)">
+            <input type="date" value="${revTabAl}" min="${today()}" onchange="cambiaRevTabAl(this.value)">
           </div>
           <div style="font-size:11px;color:var(--text3)">Resta sempre dentro un solo mese.</div>
           <div style="flex:1"></div>
