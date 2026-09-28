@@ -192,7 +192,7 @@ function renderForm(propertyName, b) {
         '<div class="field"><label>N. documento'+(i===0?'':' <span class="field-opt">(facoltativo)</span>')+'</label><input type="text" id="g-numdoc-'+i+'" value="'+(c.numDoc||'')+'"></div>' +
       '</div>' +
       '<div class="doc-photos">' +
-        '<label style="display:block;font-size:11.5px;font-weight:700;color:#6b5b58;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">Foto documento <span class="field-opt" style="text-transform:none">(facoltativo)</span></label>' +
+        '<label style="display:block;font-size:11.5px;font-weight:700;color:#6b5b58;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">Foto documento ' + (i===0 ? '<span class="field-opt" style="text-transform:none">(almeno una tra fronte e retro)</span>' : '<span class="field-opt" style="text-transform:none">(facoltativo)</span>') + '</label>' +
         '<div class="row2">' +
           '<div class="doc-photo-slot" id="dp-fronte-box-'+i+'">' +
             '<input type="file" accept="image/*" capture="environment" onchange="caricaFotoDoc(this,'+i+',\'fronte\')">' +
@@ -380,6 +380,10 @@ async function inviaCheckin() {
     var numDoc = (document.getElementById('g-numdoc-'+i)||{value:''}).value.trim();
     if (i === 0 && (!tipoDoc || !numDoc)) {
       alert('Per l\'intestatario della prenotazione (ospite 1) sono obbligatori tipo e numero di documento.');
+      return;
+    }
+    if (i === 0 && !fotoDocumenti['0-fronte'] && !fotoDocumenti['0-retro']) {
+      alert('Per l\'intestatario della prenotazione (ospite 1) è obbligatoria almeno una foto del documento (fronte o retro).');
       return;
     }
     componenti.push({
