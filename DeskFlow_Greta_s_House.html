@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 17:35</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 18:10</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -22010,9 +22010,45 @@ function renderArchivioOspiti() {
     </div>`;
 }
 
+// Trova le prenotazioni collegate a una persona dell'archivio (che potrebbe non avere una scheda
+// cliente vera e propria in "Ospiti") cercandola per nome tra intestatari e componenti — stessa
+// logica di trovaSoggiorniOspite, ma senza bisogno di un guestId.
+function trovaSoggiorniPerNome(cognome, nome) {
+  const chiaveP = chiaveStorico(cognome, nome);
+  const bookings = DB.get('bookings').filter(b => b.status !== 'cancellata');
+  const risultati = [];
+  bookings.forEach(function(b){
+    let ruolo = null, altri = [];
+    if (chiaveStorico((b.guestName||'').split(' ').slice(-1)[0], (b.guestName||'').split(' ').slice(0,-1).join(' ')) === chiaveP) {
+      // confronto approssimativo sul nome prenotazione, usato solo come indizio secondario
+    }
+    if (b.componenti && b.componenti.length) {
+      const trovatoQui = b.componenti.some(c => chiaveStorico(c.cognome, c.nome) === chiaveP);
+      if (trovatoQui) {
+        ruolo = (b.guestId && DB.get('guests').some(g => g.id===b.guestId && chiaveStorico(g.cognome||'', g.nome||(g.name||'').split(' ').slice(-1)[0])===chiaveP)) ? 'Intestatario' : 'Ospite registrato';
+        altri = b.componenti.filter(c => chiaveStorico(c.cognome, c.nome) !== chiaveP)
+          .map(c => (c.nome+' '+c.cognome).trim()).filter(Boolean);
+      }
+    }
+    if (ruolo) risultati.push({ booking: b, ruolo: ruolo, altri: altri });
+  });
+  risultati.sort((a,b) => b.booking.checkin.localeCompare(a.booking.checkin));
+  return risultati;
+}
+
 function apriDettaglioArchivioOspite(i) {
   const s = (window._archivioOspitiCorrenti||[])[i];
   if (!s) return;
+  const soggiorni = trovaSoggiorniPerNome(s.cognome, s.nome);
+  const righeSoggiorni = soggiorni.map(function(x){
+    const b = x.booking;
+    return '<tr>'+
+      '<td>'+fmtDate(b.checkin)+' → '+fmtDate(b.checkout)+'</td>'+
+      '<td>'+(b.roomName||'')+'</td>'+
+      '<td style="font-size:11.5px">'+(x.altri.length?'👥 '+x.altri.join(', '):'—')+'</td>'+
+      '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="closeModal();openDettaglioPrenotazione(\''+b.id+'\')">👁 Apri</button> <button class="btn btn-sm" onclick="stampaListaOspitiPrenotazione(\''+b.id+'\')">🖨</button></td>'+
+    '</tr>';
+  }).join('');
   showModal('Archivio — '+(s.cognome||'')+' '+(s.nome||''),
     '<table style="width:100%;font-size:12.5px;border-collapse:collapse">'+
     '<tr><td style="padding:5px 0;color:var(--text2);width:40%">Sesso</td><td>'+(s.sesso||'—')+'</td></tr>'+
@@ -22023,7 +22059,11 @@ function apriDettaglioArchivioOspite(i) {
     '<tr><td style="padding:5px 0;color:var(--text2)">Documento</td><td>'+(awDocLabel(s.tipoDoc)||s.tipoDoc||'—')+(s.numDoc?' — N° '+s.numDoc:'')+'</td></tr>'+
     '<tr><td style="padding:5px 0;color:var(--text2)">Rilasciato da</td><td>'+(s.enteDoc||'—')+(s.luogoDoc?' · '+s.luogoDoc:'')+'</td></tr>'+
     '<tr><td style="padding:5px 0;color:var(--text2)">Ultimo aggiornamento</td><td>'+(s._ultimoAggiornamento?fmtDate(s._ultimoAggiornamento):'—')+'</td></tr>'+
-    '</table>',
+    '</table>'+
+    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 8px">Soggiorni collegati</div>'+
+    (righeSoggiorni
+      ? '<table style="width:100%;font-size:12.5px;border-collapse:collapse"><thead><tr style="color:var(--text3);text-align:left;font-size:11px"><th style="padding:2px 0">Date</th><th>Camera</th><th>Con chi</th><th></th></tr></thead><tbody>'+righeSoggiorni+'</tbody></table>'
+      : '<div style="font-size:12.5px;color:var(--text3)">Nessun soggiorno collegato trovato</div>'),
     '<button class="btn" onclick="closeModal()">Chiudi</button>'
   );
 }
