@@ -24336,9 +24336,9 @@ function renderOspiti() {
         <table>
           <thead><tr><th>Nome</th><th>Email</th><th>Telefono</th><th>Nazionalità</th><th>Città</th><th>Soggiorni</th><th>Note</th><th></th></tr></thead>
           <tbody>${guests.map(g => {
-            const gBookings = bookings.filter(b => b.guestId === g.id && b.status !== 'cancellata')
-              .sort((a,b) => b.checkin.localeCompare(a.checkin));
-            const n = gBookings.length;
+            // Conta anche i soggiorni dove questo ospite era un "componente" (non intestatario) —
+            // vedi trovaSoggiorniOspite, così anche un accompagnatore risulta collegato e cliccabile.
+            const n = trovaSoggiorniOspite(g.id).length;
             const blEntry = isBlacklisted(g.id, g.name);
             return `<tr style="${blEntry?'background:#fff0f0':''}">
               <td><strong>${g.name}</strong> <span class="badge ${g.tipoCliente==='azienda'?'badge-blue':'badge-gray'}" style="font-size:9.5px">${g.tipoCliente==='azienda'?'🏢 Azienda':'👤 Privato'}</span>${blEntry?'<span style="margin-left:6px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">🚫 BLACKLIST</span>':''}</td>
