@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 29/09/2026 · 09:15</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 29/09/2026 · 17:00</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -12867,11 +12867,13 @@ function openNuovoPreventivo() {
     +'<div class="form-group"><label>Adulti</label><input type="number" id="qf-adults" value="2" min="1" oninput="checkDispPrev()"></div>'
     +'<div class="form-group"><label>Bambini</label><input type="number" id="qf-children" value="0" min="0" oninput="document.getElementById(\'qf-childrenUnderAge\').max=this.value; if(+document.getElementById(\'qf-childrenUnderAge\').value>+this.value) document.getElementById(\'qf-childrenUnderAge\').value=this.value;"></div>'
     +'<div class="form-group"><label>di cui fino a '+((DB.getObj('settings',{cityTaxChildAge:0}).cityTaxChildAge)||0)+' anni (tassa rid.)</label><input type="number" id="qf-childrenUnderAge" value="0" min="0" max="20"></div>'
-    +'<div class="form-group full"><label>Tipologia camera</label><select id="qf-tratt" onchange="checkDispPrev()">'+TRATTAMENTI.map(t=>'<option value="'+t.code+'">'+t.code+' — '+t.label+'</option>').join('')+'</select></div>'
-    +'<div class="form-group full"><label>Tariffa</label><select id="qf-tariffaId" onchange="checkDispPrev()">'+getTariffe().map(t=>'<option value="'+t.id+'">'+t.nome+'</option>').join('')+'</select></div>'
+    +'<div class="form-group"><label>Tipologia camera</label><select id="qf-tratt" onchange="checkDispPrev()">'+TRATTAMENTI.map(t=>'<option value="'+t.code+'">'+t.code+' — '+t.label+'</option>').join('')+'</select></div>'
+    +'<div class="form-group"><label>Tariffa</label><select id="qf-tariffaId" onchange="checkDispPrev()">'+getTariffe().map(t=>'<option value="'+t.id+'">'+t.nome+'</option>').join('')+'</select></div>'
     +'<div id="qf-avail" class="form-group full"><p style="font-size:14px;color:var(--text2)">Seleziona le date per vedere le camere disponibili</p></div>'
     +'<div class="form-group full"><button type="button" class="btn btn-sm" onclick="aggiungiAltroPeriodoPrev()">📅 + Aggiungi un altro periodo di date a questo preventivo</button></div>'
-    +'<div class="form-group full"><label>Prezzo totale (€)</label><input type="number" id="qf-price" step="0.01" value=""></div>'
+    +'<div class="form-group"><label>Sconto</label><input type="number" id="qf-sconto-valore" step="0.01" min="0" value="0" oninput="ricalcolaPrezzoScontato()"></div>'
+    +'<div class="form-group"><label>Tipo sconto</label><select id="qf-sconto-tipo" onchange="ricalcolaPrezzoScontato()"><option value="percentuale">% Percentuale</option><option value="importo">€ Importo fisso</option></select></div>'
+    +'<div class="form-group full"><label>Prezzo totale (€)</label><input type="number" id="qf-price" step="0.01" value="" readonly style="background:var(--surface2)"></div>'
     +'<label style="display:flex;align-items:center;gap:6px;margin-top:2px;font-size:13px;font-weight:500"><input type="checkbox" id="qf-colazione" checked style="width:auto"> Colazione inclusa</label>'
     +'<div class="form-group full"><label>Valido fino al</label><input type="date" id="qf-expiry" value="'+addD(tod,7)+'"></div>'
     +'<div class="form-group full"><label>Note</label><textarea id="qf-notes" placeholder="Note per il cliente..."></textarea></div>'
@@ -13186,9 +13188,28 @@ function renderRiepilogoPrevRooms() {
         '<span>Totale ('+sel.reduce(function(s,r){return s+(r.qty||1);},0)+' camer'+(sel.reduce(function(s,r){return s+(r.qty||1);},0)===1?'a':'e')+')</span><span>'+fmtCurrency(totale)+'</span></div>'+
       '</div>';
   }
-  const priceEl = document.getElementById('qf-price');
   const totaleExtra = (window._prevPeriodiExtra||[]).reduce(function(s,p){ return s+p.rooms.reduce(function(s2,r){return s2+r.total;},0); }, 0);
-  if (priceEl) priceEl.value = (totale+totaleExtra) ? (totale+totaleExtra).toFixed(2) : '';
+  window._prevTotaleLordo = totale+totaleExtra;
+  ricalcolaPrezzoScontato();
+}
+
+// Ricalcola il campo "Prezzo totale" applicando lo sconto (in % o in €) al totale lordo delle
+// camere/periodi selezionati. Richiamata sia quando cambia la selezione (da checkDispPrev) sia
+// quando l'utente modifica direttamente i campi Sconto.
+function ricalcolaPrezzoScontato() {
+  const priceEl = document.getElementById('qf-price');
+  if (!priceEl) return;
+  const lordo = window._prevTotaleLordo || 0;
+  const valoreEl = document.getElementById('qf-sconto-valore');
+  const tipoEl = document.getElementById('qf-sconto-tipo');
+  const valore = valoreEl ? (parseFloat(valoreEl.value)||0) : 0;
+  const tipo = tipoEl ? tipoEl.value : 'percentuale';
+  let netto = lordo;
+  if (valore > 0) {
+    netto = (tipo === 'importo') ? (lordo - valore) : (lordo * (1 - valore/100));
+  }
+  netto = Math.max(0, Math.round(netto*100)/100);
+  priceEl.value = lordo ? netto.toFixed(2) : '';
 }
 
 function savePreventivo() {
@@ -13208,7 +13229,14 @@ function savePreventivo() {
   const num    = (quotes.length>0?Math.max(...quotes.map(q=>q.num||0)):0)+1;
   const primoPeriodo = periodi[0];
   const primaria = primoPeriodo.rooms[0];
-  const totalePreventivo = periodi.reduce(function(s,p){ return s+p.rooms.reduce(function(s2,r){return s2+r.total;},0); }, 0);
+  const totaleLordoPreventivo = periodi.reduce(function(s,p){ return s+p.rooms.reduce(function(s2,r){return s2+r.total;},0); }, 0);
+  const scontoValore = parseFloat(document.getElementById('qf-sconto-valore')?.value)||0;
+  const scontoTipo = (document.getElementById('qf-sconto-tipo')||{value:'percentuale'}).value;
+  let totalePreventivo = totaleLordoPreventivo;
+  if (scontoValore > 0) {
+    totalePreventivo = (scontoTipo === 'importo') ? (totaleLordoPreventivo - scontoValore) : (totaleLordoPreventivo * (1 - scontoValore/100));
+  }
+  totalePreventivo = Math.max(0, Math.round(totalePreventivo*100)/100);
   const q = {
     id: uid(), num, clientName,
     clientEmail: document.getElementById('qf-email').value,
@@ -13228,6 +13256,9 @@ function savePreventivo() {
     children:    parseInt(document.getElementById('qf-children').value)||0,
     childrenUnderAge: Math.min(parseInt(document.getElementById('qf-childrenUnderAge')?.value)||0, parseInt(document.getElementById('qf-children').value)||0),
     totalPrice:  totalePreventivo,
+    totalePrimaDelloSconto: totaleLordoPreventivo,
+    scontoValore: scontoValore,
+    scontoTipo:  scontoTipo,
     colazioneInclusa: !!document.getElementById('qf-colazione')?.checked,
     expiry:      document.getElementById('qf-expiry').value,
     notes:       document.getElementById('qf-notes').value,
