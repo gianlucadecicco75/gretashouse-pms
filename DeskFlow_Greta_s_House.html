@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 29/09/2026 · 17:00</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 29/09/2026 · 18:15</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -12837,6 +12837,8 @@ function trasformaRichiestaInPreventivo(id) {
     set('qf-children', r.children);
     const notesEl = document.getElementById('qf-notes');
     if (notesEl && r.message) notesEl.value = 'Richiesta originale ('+(r.fonte||'')+'): '+r.message;
+    // Riallinea il mini-calendario alle date appena precompilate dalla richiesta
+    apriMiniCalendario('qf','qf-checkin','qf-checkout', document.getElementById('qf-checkin').value, document.getElementById('qf-checkout').value);
     checkDispPrev();
   }, 150);
 }
@@ -12861,8 +12863,9 @@ function openNuovoPreventivo() {
     +'<div class="form-group"><label>Email</label><input type="email" id="qf-email" placeholder="mario@example.com"></div>'
     +'<div class="form-group"><label>Telefono</label><input type="text" id="qf-phone" placeholder="+39 000 0000000"></div>'
     +'<div class="form-group full" id="qf-periodi-extra"></div>'
-    +'<div class="form-group"><label>Check-in *</label><input type="date" id="qf-checkin" value="'+tod+'" onchange="document.getElementById(\'qf-checkout\').value=addDays(this.value,1); checkDispPrev()"></div>'
-    +'<div class="form-group"><label>Check-out *</label><input type="date" id="qf-checkout" value="'+addD(tod,2)+'" onchange="checkDispPrev()"></div>'
+    +'<input type="date" id="qf-checkin" value="'+tod+'" style="display:none" onchange="document.getElementById(\'qf-checkout\').value=addDays(this.value,1); checkDispPrev()">'
+    +'<input type="date" id="qf-checkout" value="'+addD(tod,2)+'" style="display:none" onchange="checkDispPrev()">'
+    +'<div class="form-group full"><label>Check-in / Check-out — verde = disponibile, rosso = occupato/chiuso</label><div id="mc-qf"></div></div>'
     +'<div class="form-group"><label>Notti</label><div id="qf-nights" style="padding:8px 0;font-size:24px;font-weight:800;color:var(--accent)">2 notti</div></div>'
     +'<div class="form-group"><label>Adulti</label><input type="number" id="qf-adults" value="2" min="1" oninput="checkDispPrev()"></div>'
     +'<div class="form-group"><label>Bambini</label><input type="number" id="qf-children" value="0" min="0" oninput="document.getElementById(\'qf-childrenUnderAge\').max=this.value; if(+document.getElementById(\'qf-childrenUnderAge\').value>+this.value) document.getElementById(\'qf-childrenUnderAge\').value=this.value;"></div>'
@@ -12882,7 +12885,7 @@ function openNuovoPreventivo() {
     +'<button class="btn btn-primary" onclick="savePreventivo()">Crea preventivo</button>',
     '820px'
   );
-  setTimeout(checkDispPrev, 100);
+  setTimeout(function(){ apriMiniCalendario('qf','qf-checkin','qf-checkout', tod, addD(tod,2)); checkDispPrev(); }, 100);
 }
 
 
@@ -17693,13 +17696,11 @@ function openNuovaPrenotazione(prefillDate, prefillRoom) {
           </div>
         </div>
       </div>
-      <div class="form-group">
-        <label>Check-in</label>
-        <input type="date" id="f-checkin" value="${tod}" onchange="document.getElementById('f-checkout').value=addDays(this.value,1); updateTotalPrice();aggiornaNottiDisplay();aggiornaCamereDisponibiliNuovaPrenotazione()">
-      </div>
-      <div class="form-group">
-        <label>Check-out</label>
-        <input type="date" id="f-checkout" value="${addD(tod,1)}" onchange="updateTotalPrice();aggiornaNottiDisplay();aggiornaCamereDisponibiliNuovaPrenotazione()">
+      <input type="date" id="f-checkin" value="${tod}" style="display:none" onchange="document.getElementById('f-checkout').value=addDays(this.value,1); updateTotalPrice();aggiornaNottiDisplay();aggiornaCamereDisponibiliNuovaPrenotazione()">
+      <input type="date" id="f-checkout" value="${addD(tod,1)}" style="display:none" onchange="updateTotalPrice();aggiornaNottiDisplay();aggiornaCamereDisponibiliNuovaPrenotazione()">
+      <div class="form-group full">
+        <label>Check-in / Check-out — verde = disponibile, rosso = occupato/chiuso</label>
+        <div id="mc-f"></div>
       </div>
       <div class="form-group full">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
@@ -17835,7 +17836,7 @@ function openNuovaPrenotazione(prefillDate, prefillRoom) {
     '820px'
   );
   // Use setTimeout so modal is fully in DOM before calculating
-  setTimeout(updateTotalPrice, 50);
+  setTimeout(function(){ apriMiniCalendario('f','f-checkin','f-checkout', tod, addD(tod,1)); updateTotalPrice(); }, 50);
 }
 
 // Campo di ricerca ospite con suggerimento nativo (datalist): se il nome digitato corrisponde
@@ -31866,6 +31867,122 @@ function toggleChiusuraGiorno(roomId, ds, fromPage) {
   var room = getRooms().find(function(r){ return r.id===roomId; });
   var tipo = normCatType(room ? room.type : '');
   toggleChiusuraCategoria(encodeURIComponent(tipo), ds, fromPage);
+}
+
+// ============================================================
+// MINI-CALENDARIO DISPONIBILITÀ (pallino verde = disponibile, rosso = occupato/chiuso)
+// Sostituisce visivamente i campi data nativi di "Nuovo preventivo" e "Nuova prenotazione". I campi
+// data nativi restano nella pagina ma nascosti: il mini-calendario si limita a scriverci dentro e a
+// simulare il cambiamento (evento "change"), come se l'utente avesse scelto la data dal calendario
+// del browser — così tutto il resto del programma (disponibilità, prezzi, ecc.) continua a
+// funzionare senza bisogno di essere toccato.
+// ============================================================
+window._miniCal = window._miniCal || {};
+var MESI_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+function tipologieDisponibiliElenco() {
+  var rooms = DB.get('rooms') || [];
+  var set = {};
+  rooms.forEach(function(r){ set[normCatType(r.type)] = true; });
+  return Object.keys(set).sort();
+}
+
+// Disponibilità di UNA notte (ds) per la tipologia scelta (tipo vuoto = tutte le camere)
+function miniCalDisponibilitaGiorno(ds, tipo) {
+  var rooms = (DB.get('rooms')||[]).filter(function(r){ return r.status==='disponibile' && (!tipo || normCatType(r.type)===tipo); });
+  if (!rooms.length) return 'na'; // nessuna camera di questa tipologia in struttura
+  if (tipo && isTipoClosed(tipo, ds)) return 'red';
+  var bookings = (DB.get('bookings')||[]).filter(function(b){ return b.status!=='cancellata'; });
+  var libere = rooms.filter(function(r){
+    if (isRoomDayBlocked(r.id, ds)) return false;
+    return !bookings.some(function(b){ return b.roomId===r.id && b.checkin<=ds && b.checkout>ds; });
+  }).length;
+  return libere>0 ? 'green' : 'red';
+}
+
+// Inizializza e disegna il mini-calendario per il campo idPrefix (es. "qf" o "f"), collegato ai
+// due campi data nativi (nascosti) checkinId/checkoutId
+function apriMiniCalendario(idPrefix, checkinId, checkoutId, initCheckin, initCheckout) {
+  window._miniCal[idPrefix] = {
+    mese: (initCheckin||today()).slice(0,7)+'-01',
+    checkin: initCheckin||null,
+    checkout: initCheckout||null,
+    tipo: ''
+  };
+  renderMiniCalendario(idPrefix, checkinId, checkoutId);
+}
+function miniCalCambiaMese(idPrefix, checkinId, checkoutId, delta) {
+  var st = window._miniCal[idPrefix]; if (!st) return;
+  var d = parseLD(st.mese); d.setMonth(d.getMonth()+delta);
+  st.mese = fmtD(new Date(d.getFullYear(), d.getMonth(), 1));
+  renderMiniCalendario(idPrefix, checkinId, checkoutId);
+}
+function miniCalCambiaTipo(idPrefix, checkinId, checkoutId, val) {
+  var st = window._miniCal[idPrefix]; if (!st) return;
+  st.tipo = val;
+  renderMiniCalendario(idPrefix, checkinId, checkoutId);
+}
+function miniCalClickGiorno(idPrefix, checkinId, checkoutId, ds) {
+  var st = window._miniCal[idPrefix]; if (!st) return;
+  if (!st.checkin || st.checkout) { st.checkin = ds; st.checkout = null; }
+  else if (ds <= st.checkin) { st.checkin = ds; st.checkout = null; }
+  else { st.checkout = ds; }
+  var inCk = document.getElementById(checkinId), inCo = document.getElementById(checkoutId);
+  if (inCk && st.checkin) { inCk.value = st.checkin; inCk.dispatchEvent(new Event('change')); }
+  if (inCo && st.checkout) { inCo.value = st.checkout; inCo.dispatchEvent(new Event('change')); }
+  renderMiniCalendario(idPrefix, checkinId, checkoutId);
+}
+function renderMiniCalendario(idPrefix, checkinId, checkoutId) {
+  var box = document.getElementById('mc-'+idPrefix);
+  var st = window._miniCal[idPrefix];
+  if (!box || !st) return;
+  var meseDate = parseLD(st.mese);
+  var anno = meseDate.getFullYear(), mese = meseDate.getMonth();
+  var primoGiorno = new Date(anno, mese, 1);
+  var ultimoGiorno = new Date(anno, mese+1, 0);
+  var offset = (primoGiorno.getDay()+6)%7; // lun=0
+  var oggi = today();
+
+  var celle = '';
+  for (var i=0;i<offset;i++) celle += '<div></div>';
+  for (var g=1; g<=ultimoGiorno.getDate(); g++) {
+    var d = new Date(anno, mese, g);
+    var ds = fmtD(d);
+    var stato = miniCalDisponibilitaGiorno(ds, st.tipo);
+    var colore = stato==='green' ? '#22c55e' : (stato==='red' ? '#ef4444' : '#cbd5e1');
+    var inRange = st.checkin && st.checkout && ds>st.checkin && ds<st.checkout;
+    var isCheckin = ds===st.checkin, isCheckout = ds===st.checkout;
+    var bg = (isCheckin||isCheckout) ? 'var(--accent)' : (inRange ? 'var(--accent-light)' : 'transparent');
+    var fg = (isCheckin||isCheckout) ? '#fff' : 'var(--text1)';
+    var passato = ds < oggi ? 'opacity:.45;' : '';
+    celle += '<div onclick="miniCalClickGiorno(\''+idPrefix+'\',\''+checkinId+'\',\''+checkoutId+'\',\''+ds+'\')" '+
+      'style="cursor:pointer;text-align:center;padding:5px 0;border-radius:6px;font-size:12px;background:'+bg+';color:'+fg+';'+passato+'" '+
+      'title="'+fmtDate(ds)+' — '+(stato==='green'?'disponibile':(stato==='red'?'occupato/chiuso':'nessuna camera di questo tipo'))+'">'+
+      g+'<div style="width:6px;height:6px;border-radius:50%;background:'+colore+';margin:2px auto 0"></div>'+
+    '</div>';
+  }
+
+  box.innerHTML =
+    '<div style="border:1px solid var(--border2);border-radius:8px;padding:10px;background:var(--surface)">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+      '<button type="button" class="btn btn-sm" style="padding:2px 8px" onclick="miniCalCambiaMese(\''+idPrefix+'\',\''+checkinId+'\',\''+checkoutId+'\',-1)">‹</button>' +
+      '<strong style="font-size:13px">'+MESI_IT[mese]+' '+anno+'</strong>' +
+      '<button type="button" class="btn btn-sm" style="padding:2px 8px" onclick="miniCalCambiaMese(\''+idPrefix+'\',\''+checkinId+'\',\''+checkoutId+'\',1)">›</button>' +
+    '</div>' +
+    '<div style="margin-bottom:8px"><select onchange="miniCalCambiaTipo(\''+idPrefix+'\',\''+checkinId+'\',\''+checkoutId+'\',this.value)" style="width:100%;padding:5px;font-size:12px;border:.5px solid var(--border2);border-radius:6px">' +
+      '<option value="">Tutte le camere</option>' +
+      tipologieDisponibiliElenco().map(function(t){ return '<option value="'+t+'"'+(st.tipo===t?' selected':'')+'>'+t+'</option>'; }).join('') +
+    '</select></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:10px;color:var(--text3);text-align:center;margin-bottom:2px">' +
+      ['L','M','M','G','V','S','D'].map(function(l){return '<div>'+l+'</div>';}).join('') +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">'+celle+'</div>' +
+    '<div style="display:flex;gap:12px;margin-top:8px;font-size:10.5px;color:var(--text3)">' +
+      '<span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-right:3px"></span>Disponibile</span>' +
+      '<span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-right:3px"></span>Occupato/chiuso</span>' +
+    '</div>' +
+    (st.checkin ? '<div style="margin-top:8px;font-size:12px;color:var(--text2)">'+fmtDate(st.checkin)+(st.checkout?' → '+fmtDate(st.checkout):' → <em>scegli la data di check-out</em>')+'</div>' : '') +
+    '</div>';
 }
 
 // ── Blocco di una singola camera per una singola data (esclusa dalla vendita) ──
