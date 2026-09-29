@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 28/09/2026 · 23:08</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 29/09/2026 · 09:15</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -30430,7 +30430,6 @@ function renderRevenue() {
   var cfg=getRevenueConfig();
   var ccfg=DB.getObj('settings',{currency:'€'});
   if(!revPeriodoDal){ revPeriodoDal=cfg.periodoDal||today(); }
-  if(revPeriodoDal<today()){ revPeriodoDal=today(); } // niente date passate nel range dei prezzi consigliati
   if(!revPeriodoAl){ revPeriodoAl=cfg.periodoAl||addDays(revPeriodoDal,29); }
   if(revPeriodoAl<revPeriodoDal){ revPeriodoAl=addDays(revPeriodoDal,29); }
   if(!revTabDal){ revTabDal=today(); }
@@ -30466,7 +30465,7 @@ function renderRevenue() {
             <input type="number" id="rev-weekend" value="${cfg.weekendBoost}" step="1">
           </div>
           <div class="form-group"><label>Periodo dal</label>
-            <input type="date" id="rev-dal" value="${revPeriodoDal}" min="${today()}" onchange="revPeriodoDal=this.value; renderRevenue()">
+            <input type="date" id="rev-dal" value="${revPeriodoDal}" onchange="revPeriodoDal=this.value; renderRevenue()">
           </div>
           <div class="form-group"><label>al</label>
             <input type="date" id="rev-al" value="${revPeriodoAl}" min="${revPeriodoDal}" onchange="revPeriodoAl=this.value; renderRevenue()">
