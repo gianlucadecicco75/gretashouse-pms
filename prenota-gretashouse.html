@@ -204,6 +204,8 @@ var I18N = {
     telefonoPlain: 'Telefono',
     confermaPrenotazione: 'Conferma prenotazione',
     prenotazioneDiretta: 'Prenotazione diretta, senza carta di credito. Ti contatteremo per confermare i dettagli del check-in.',
+    codiceSconto: 'Codice sconto (facoltativo)', applica: 'Applica', codiceNonValido: 'Codice non valido.', codiceFuoriPeriodo: function(per){ return 'Il codice vale solo per soggiorni ' + per + ': nessuna notte del tuo soggiorno rientra.'; },
+    scontoApplicato: function(pct, nn, n, val){ return '🎁 Sconto ' + pct + '% applicato' + (nn < n ? ' su ' + nn + ' nott' + (nn===1?'e':'i') + ' di ' + n : '') + ': -EUR ' + val; }, totaleScontato: 'Totale scontato', dal: 'dal', al: 'al', codiceRichiesta: 'Codice sconto (facoltativo)',
     inserisciNomeEmail: 'Inserisci almeno nome e email.',
     prenotazioneConfermata: 'Prenotazione confermata!',
     graziePerAverScelto: "Riceverai una email di conferma a breve. Grazie per aver scelto Greta's House!",
@@ -274,6 +276,8 @@ var I18N = {
     telefonoPlain: 'Phone',
     confermaPrenotazione: 'Confirm booking',
     prenotazioneDiretta: "Direct booking, no credit card required. We'll contact you to confirm check-in details.",
+    codiceSconto: 'Discount code (optional)', applica: 'Apply', codiceNonValido: 'Invalid code.', codiceFuoriPeriodo: function(per){ return 'This code is only valid for stays ' + per + ': none of your nights qualify.'; },
+    scontoApplicato: function(pct, nn, n, val){ return '🎁 ' + pct + '% discount applied' + (nn < n ? ' on ' + nn + ' of ' + n + ' night' + (n===1?'':'s') : '') + ': -EUR ' + val; }, totaleScontato: 'Discounted total', dal: 'from', al: 'to', codiceRichiesta: 'Discount code (optional)',
     inserisciNomeEmail: 'Please enter at least your name and email.',
     prenotazioneConfermata: 'Booking confirmed!',
     graziePerAverScelto: "You'll receive a confirmation email shortly. Thank you for choosing Greta's House!",
@@ -344,6 +348,8 @@ var I18N = {
     telefonoPlain: 'Téléphone',
     confermaPrenotazione: 'Confirmer la réservation',
     prenotazioneDiretta: "Réservation directe, sans carte de crédit. Nous vous contacterons pour confirmer les détails de l'arrivée.",
+    codiceSconto: 'Code promo (facultatif)', applica: 'Appliquer', codiceNonValido: 'Code non valide.', codiceFuoriPeriodo: function(per){ return 'Ce code est valable uniquement pour les séjours ' + per + ' : aucune nuit de votre séjour ne correspond.'; },
+    scontoApplicato: function(pct, nn, n, val){ return '🎁 Réduction de ' + pct + '% appliquée' + (nn < n ? ' sur ' + nn + ' nuit' + (nn===1?'':'s') + ' sur ' + n : '') + ' : -EUR ' + val; }, totaleScontato: 'Total réduit', dal: 'du', al: 'au', codiceRichiesta: 'Code promo (facultatif)',
     inserisciNomeEmail: 'Veuillez indiquer au moins votre nom et votre email.',
     prenotazioneConfermata: 'Réservation confirmée !',
     graziePerAverScelto: "Vous recevrez un email de confirmation sous peu. Merci d'avoir choisi Greta's House !",
@@ -738,6 +744,9 @@ async function cercaDisponibilita() {
       scontiSoggiornoLungo: (risSet.data && risSet.data.data && risSet.data.data.scontiSoggiornoLungo) || [],
       markupOTA: (risSet.data && risSet.data.data && risSet.data.data.markupOTA) || 0
     };
+    // per il codice sconto "bentornato" (stesse regole decise in DeskFlow → Impostazioni)
+    window._sitoCtx = ctx; window._sitoListino = listino || []; window._sitoRooms = rooms || [];
+    window._sitoSettings = (risSet.data && risSet.data.data) || {};
 
     var occupatePerCamera = {};
     (bookings || []).forEach(function(b){
@@ -834,6 +843,7 @@ function inviaRichiesta(checkin, checkout, adults, children, roomName) {
       '<div class="field"><label>' + L.telefonoLabel + '</label><input type="text" id="r-telefono" required></div>' +
       '<div class="field"><label>' + L.emailLabel + '</label><input type="email" id="r-email" required></div>' +
       '<div class="field"><label>' + L.noteOpz + '</label><input type="text" id="r-note"></div>' +
+      '<div class="field"><label>' + L.codiceRichiesta + '</label><input type="text" id="r-codice" style="text-transform:uppercase"></div>' +
       '<button class="btn btn-primary" id="btn-invia-richiesta" onclick="confermaRichiesta(\'' + checkin + '\', \'' + checkout + '\', ' + adults + ', ' + children + ', \'' + (roomName||'').replace(/'/g,"\\'") + '\')">' + L.inviaRichiesta + '</button>' +
       '<div style="font-size:11px;color:#9a8b88;margin-top:10px">' + L.tiRisponderemo + '</div>' +
     '</div>';
@@ -854,6 +864,13 @@ async function confermaRichiesta(checkin, checkout, adults, children, roomName) 
   var email = (document.getElementById('r-email')||{value:''}).value.trim();
   var note = (document.getElementById('r-note')||{value:''}).value.trim();
   if (!nome || !cognome || !telefono || !email) { alert(L.compilaTutti); return; }
+  var codR = (document.getElementById('r-codice')||{value:''}).value.trim().toUpperCase();
+  if (codR) {
+    var sS = window._sitoSettings || {}, perR = (sS.bentornatoPeriodi||[]);
+    var okCod = (sS.codiceBentornato||'').toUpperCase() === codR;
+    var okDate = perR.some(function(p){ return p.dal < checkout && p.al >= checkin; });
+    note = (note ? note + ' | ' : '') + 'Codice sconto indicato: ' + codR + (okCod ? (okDate ? ' (valido per queste date)' : ' (fuori dai periodi validi)') : ' (NON valido)');
+  }
 
   var btn = document.getElementById('btn-invia-richiesta');
   btn.disabled = true;
@@ -938,7 +955,47 @@ async function confermaRichiesta(checkin, checkout, adults, children, roomName) 
   }
 }
 
+// ===== Codice sconto "bentornato" =====
+// Vale solo per le notti che cadono nei periodi impostati in DeskFlow (Impostazioni → codice sconto e
+// periodi). Lo sconto % si calcola sul prezzo vero di quelle notti (con lo stesso sconto soggiorno lungo
+// già applicato al totale), quindi il totale finale è sempre coerente con quello mostrato nei risultati.
+function fmtDataBreve(iso){ var p=iso.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function periodiBentornatoTesto(periodi){ return periodi.map(function(p){ return L.dal+' '+fmtDataBreve(p.dal)+' '+L.al+' '+fmtDataBreve(p.al); }).join(', '); }
+function verificaCodiceSconto(codice, roomId){
+  var s = window._sitoSettings || {};
+  var valido = (s.codiceBentornato||'').trim().toUpperCase();
+  var pct = parseFloat(s.bentornatoPercento) || 0;
+  var periodi = (s.bentornatoPeriodi || []).filter(function(p){ return p && p.dal && p.al; });
+  if (!codice || !valido || codice.trim().toUpperCase() !== valido || pct <= 0 || !periodi.length) return { ok:false, motivo:L.codiceNonValido };
+  var r = ultimaRicerca, room = (window._sitoRooms||[]).find(function(x){ return x.id === roomId; });
+  var listinoRoom = (window._sitoListino||[]).find(function(l){ return l.room_id === roomId; });
+  var pax = r.adults + r.children, nn = 0, somma = 0, ds = r.checkin;
+  for (var i = 0; i < r.n; i++) {
+    var d = new Date(r.checkin+'T00:00:00'); d.setDate(d.getDate()+i);
+    ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    if (periodi.some(function(p){ return p.dal <= ds && p.al >= ds; })) { nn++; if (room) somma += prezzoFinaleNotte(room, listinoRoom, pax, ds, window._sitoCtx); }
+  }
+  if (!nn) return { ok:false, motivo:L.codiceFuoriPeriodo(periodiBentornatoTesto(periodi)) };
+  var lungo = scontoSoggiornoLungoPct(r.n, (window._sitoCtx||{}).scontiSoggiornoLungo);
+  var sconto = Math.round(somma * (1 - lungo/100) * pct) / 100;
+  return { ok:true, codice:valido, pct:pct, notti:nn, sconto:sconto, roomId:roomId };
+}
+function applicaCodiceSconto(roomId, totale){
+  var cod = (document.getElementById('p-codice')||{value:''}).value;
+  var esito = verificaCodiceSconto(cod, roomId);
+  var box = document.getElementById('p-sconto-msg'), riga = document.getElementById('p-totale');
+  window._prenotSconto = esito.ok ? esito : null;
+  if (!esito.ok) {
+    box.style.color = '#b42318'; box.textContent = esito.motivo;
+    riga.innerHTML = '<b>EUR ' + totale.toFixed(2) + '</b>';
+    return;
+  }
+  box.style.color = '#2e7d32'; box.textContent = L.scontoApplicato(esito.pct, esito.notti, ultimaRicerca.n, esito.sconto.toFixed(2));
+  riga.innerHTML = '<s style="color:#9a8b88;font-weight:400">EUR ' + totale.toFixed(2) + '</s> <b>EUR ' + (totale - esito.sconto).toFixed(2) + '</b>';
+}
+
 function apriPrenotazione(roomId, roomName, totale) {
+  window._prenotSconto = null;
   var div = document.createElement('div');
   div.id = 'book-overlay';
   div.className = 'overlay';
@@ -949,11 +1006,12 @@ function apriPrenotazione(roomId, roomName, totale) {
       '<div class="rowinfo"><span>' + L.unita + '</span><span><b>' + roomName + '</b></span></div>' +
       '<div class="rowinfo"><span>' + L.checkin + '</span><span>' + ultimaRicerca.checkin + '</span></div>' +
       '<div class="rowinfo"><span>' + L.checkout + '</span><span>' + ultimaRicerca.checkout + '</span></div>' +
-      '<div class="rowinfo"><span>' + L.totale + '</span><span><b>EUR ' + totale.toFixed(2) + '</b></span></div>' +
+      '<div class="rowinfo"><span>' + L.totale + '</span><span id="p-totale"><b>EUR ' + totale.toFixed(2) + '</b></span></div>' +
       '<div class="field"><label>' + L.nomeCognome + '</label><input type="text" id="p-nome"></div>' +
       '<div class="field"><label>' + L.emailPlain + '</label><input type="email" id="p-email"></div>' +
       '<div class="field"><label>' + L.telefonoPlain + '</label><input type="text" id="p-telefono"></div>' +
       '<div class="field"><label>' + L.noteOpz + '</label><input type="text" id="p-note"></div>' +
+      '<div class="field"><label>' + L.codiceSconto + '</label><div style="display:flex;gap:6px"><input type="text" id="p-codice" style="text-transform:uppercase;flex:1"><button type="button" class="btn-outline" style="white-space:nowrap" onclick="applicaCodiceSconto(\'' + roomId + '\', ' + totale.toFixed(2) + ')">' + L.applica + '</button></div><div id="p-sconto-msg" style="font-size:12.5px;margin-top:5px"></div></div>' +
       '<button class="btn btn-primary" id="btn-conferma" onclick="confermaPrenotazione(\'' + roomId + '\', \'' + roomName.replace(/'/g,"\\'") + '\', ' + totale.toFixed(2) + ')">' + L.confermaPrenotazione + '</button>' +
       '<div style="font-size:11px;color:#9a8b88;margin-top:10px">' + L.prenotazioneDiretta + '</div>' +
     '</div>';
@@ -966,6 +1024,14 @@ async function confermaPrenotazione(roomId, roomName, totale) {
   var telefono = (document.getElementById('p-telefono')||{value:''}).value.trim();
   var note = (document.getElementById('p-note')||{value:''}).value.trim();
   if (!nome || !email) { alert(L.inserisciNomeEmail); return; }
+  // Codice sconto: se è stato scritto ma non applicato, lo si verifica comunque qui
+  var codScritto = (document.getElementById('p-codice')||{value:''}).value.trim();
+  if (codScritto && !(window._prenotSconto && window._prenotSconto.roomId === roomId)) { applicaCodiceSconto(roomId, totale); if (!window._prenotSconto) return; }
+  var scontoInfo = (window._prenotSconto && window._prenotSconto.roomId === roomId) ? window._prenotSconto : null;
+  if (scontoInfo) {
+    totale = Math.round((totale - scontoInfo.sconto) * 100) / 100;
+    note = (note ? note + ' | ' : '') + 'Codice sconto ' + scontoInfo.codice + ' (-' + scontoInfo.pct + '% su ' + scontoInfo.notti + ' nott' + (scontoInfo.notti===1?'e':'i') + '): -EUR ' + scontoInfo.sconto.toFixed(2);
+  }
 
   var btn = document.getElementById('btn-conferma');
   btn.disabled = true;
