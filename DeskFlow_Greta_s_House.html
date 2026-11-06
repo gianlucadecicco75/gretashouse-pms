@@ -339,7 +339,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 04/11/2026 · 21:00</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 05/11/2026 · 10:30</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -377,6 +377,7 @@ tr:hover td{background:var(--surface2)}
   <div class="nav-item" onclick="navigate('tipologie')" data-page="tipologie">🏷 Tipologie</div>
   <div class="nav-item" onclick="navigate('tassasoggiorno')" data-page="tassasoggiorno">🏛 Tassa di soggiorno</div>
   <div class="nav-item" onclick="navigate('sitoweb')" data-page="sitoweb">🌐 Sito web</div>
+  <div class="nav-item" onclick="navigate('statistichesito')" data-page="statistichesito">📈 Statistiche sito</div>
   <div class="nav-section">Operativo</div>
   <div class="nav-item" onclick="navigate('biancheria')" data-page="biancheria">🧺 Biancheria</div>
   <div class="nav-item" onclick="navigate('puliziamobile')" data-page="puliziamobile">🧹📱 Pulizie mobile</div>
@@ -468,6 +469,7 @@ tr:hover td{background:var(--surface2)}
   <div id="page-impostazioni" class="page"></div>
   <div id="page-utenti" class="page"></div>
   <div id="page-registro" class="page"></div>
+  <div id="page-statistichesito" class="page"></div>
   <div id="page-salvataggio" class="page"></div>
 </div>
 <div id="modal-container"></div>
@@ -11563,7 +11565,7 @@ function navigate(page){
     housekeeping:renderHousekeeping,previsionale:renderPrevisionale,report:renderReport,biancheria:renderBiancheria,
     extra:renderExtra,manutenzione:renderManutenzione,adempimenti:renderAdempimenti,reportpasti:renderReportPasti,
     blacklist:renderBlacklist,ical:renderIcal,impostazioni:renderImpostazioni,
-    salvataggio:renderSalvataggio,sitoweb:renderSitoWeb,utenti:renderGestioneUtenti,registro:renderRegistro
+    salvataggio:renderSalvataggio,sitoweb:renderSitoWeb,utenti:renderGestioneUtenti,registro:renderRegistro,statistichesito:renderStatisticheSito
   };
   if(map[page]){
     try{
@@ -14473,6 +14475,7 @@ function forzaAggiornamentoApp() {
     if (!confirm('C\'è ancora un salvataggio in corso verso Supabase — se ricarichi ora rischi di perderlo. Vuoi ricaricare comunque?')) return;
   }
   var url = new URL(window.location.href);
+  url.searchParams.delete('autologin_email'); url.searchParams.delete('autologin_password');
   url.searchParams.set('_agg', Date.now());
   window.location.href = url.toString();
 }
@@ -14501,6 +14504,7 @@ function renderDashboard() {
     var colazioniOggi = presentiIeriNotte.reduce(function(s,b){ return s + (b.colazioneInclusa!==false ? (Number(b.adults||1)+Number(b.children||0)) : 0); }, 0);
     var cfgDash = DB.getObj('settings', {});
     var isFreshPC = !cfgDash.supabaseUrl || !cfgDash.supabaseKey;
+    if(_revMeteoCache===null){ _revCaricaMeteo(); } // parte in background, ridisegna da sola quando pronto
 
     var ieriTod = addDays(tod, -1);
     var revenueIeri = fatturatoDelGiorno(ieriTod);
@@ -14518,13 +14522,13 @@ function renderDashboard() {
     var nuovePrenSettimana = bookings.filter(function(b){ return b.createdAt && settimanaTod.indexOf(b.createdAt.slice(0,10))>=0; }).length;
     var oraAgg = new Date().toLocaleString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-    function _dashCardShell(colore, titolo, iconaSfondo, icona, corpo) {
+    function _dashCardShell(colore, titolo, iconaSfondo, icona, corpo, azioneAggiorna, titoloAggiorna) {
       return '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:10px;border-top:4px solid '+colore+';padding:16px 18px;flex:1;min-width:280px;display:flex;flex-direction:column">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
           '<div style="font-size:13px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">'+titolo+'</div>' +
           '<div style="display:flex;align-items:center;gap:8px">' +
             '<div style="width:36px;height:36px;border-radius:50%;background:'+iconaSfondo+';display:flex;align-items:center;justify-content:center;font-size:17px">'+icona+'</div>' +
-            '<span onclick="renderDashboard()" title="Aggiorna" style="cursor:pointer;color:var(--text3);font-size:16px">↻</span>' +
+            '<span onclick="'+(azioneAggiorna||'renderDashboard()')+'" title="'+(titoloAggiorna||'Aggiorna')+'" style="cursor:pointer;color:var(--text3);font-size:16px">↻</span>' +
           '</div>' +
         '</div>' +
         corpo +
@@ -14570,6 +14574,29 @@ function renderDashboard() {
       '</div>'
     );
 
+    var cardStatisticheSito = _dashCardShell('#0ea5e9', 'Statistiche sito', '#e0f2fe', '📈',
+      '<div id="dash-sitestats-body"><div style="font-size:13px;color:var(--text3)">Caricamento…</div></div>' +
+      '<div style="margin-top:8px"><span onclick="navigate(\'statistichesito\')" style="cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:600">Vedi tutte le statistiche →</span></div>'
+    );
+    var cardMeteo = _dashCardShell('#0284c7', '🌤 Meteo', '#e0f2fe', '🌤',
+      (_revMeteoCache===null
+        ? '<div style="font-size:13px;color:var(--text3)">Caricamento previsioni…</div>'
+        : '<div style="display:flex;gap:16px;flex-wrap:wrap">' +
+          [0,1,2,3,4].map(function(i){
+            var ds = addDays(today(), i);
+            var lbl = i===0 ? 'Oggi' : i===1 ? 'Domani' : parseLD(ds).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+            var m = meteoInfoPerData(ds);
+            return '<div style="text-align:center;min-width:58px">' +
+              '<div style="font-size:12px;color:var(--text3);margin-bottom:4px;text-transform:capitalize">'+lbl+'</div>' +
+              (m
+                ? '<div style="width:42px;height:42px;margin:0 auto 2px">'+meteoIconaSVG(m.code)+'</div><div style="font-size:15px;font-weight:700">'+Math.round(m.temp)+'°C</div><div style="font-size:10.5px;color:var(--text3);white-space:nowrap">'+(METEO_ETICHETTE[m.code]||'—').split(' ').slice(1).join(' ')+'</div>'
+                : '<div style="font-size:12px;color:var(--text3)">—</div>')+
+            '</div>';
+          }).join('') +
+        '</div>'),
+      'apriMeteoCompleto()', 'Meteo completo'
+    );
+
     var html = (isFreshPC ? (
       '<div style="margin:16px;padding:16px 18px;background:#eaf2ff;border:1px solid #bcd6ff;border-radius:10px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">' +
         '<div style="font-size:26px">💾</div>' +
@@ -14592,7 +14619,7 @@ function renderDashboard() {
       '</div></div>' +
       '<div class="page-content">' +
       '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px">' + card1 + card2 + card3 + '</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px">' + cardOccupazione + '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px">' + cardOccupazione + cardStatisticheSito + cardMeteo + '</div>' +
       '<div class="card" style="margin-bottom:14px">' +
         '<div class="card-header"><span class="card-title">🆕 Nuove prenotazioni del '+fmtDate(tod)+' ('+nuovePrenLista.length+')</span></div>' +
         (nuovePrenLista.length===0
@@ -14713,6 +14740,7 @@ function renderDashboard() {
     html += '</div></div>';
     localStorage.setItem('pms_last_save', new Date().toLocaleString('it-IT'));
     el.innerHTML = html;
+    _dashCaricaStatisticheSito(tod);
   } catch(e) {
     el.innerHTML = '<div style="padding:24px"><div style="background:#fee2e2;color:#dc2626;padding:12px;border-radius:8px;font-size:12px;font-family:monospace"><strong>Dashboard error:</strong><br>'+e.message+'<br>'+e.stack+'</div></div>';
   }
@@ -15879,7 +15907,7 @@ var PAGINE_PERMESSO = {
   corrispettivi:'corrispettivi', contidasaldare:'contidasaldare',
   listino:'listino', livelli:'livelli', tipologie:'tipologie', tassasoggiorno:'tassasoggiorno', camere:'camere',
   manutenzione:'manutenzione',
-  extra:'extra', addebitiextra:'addebitiextra', adempimenti:'adempimenti', blacklist:'blacklist', ical:'ical', condizioni:'condizioni', guidaospiti:'guidaospiti', sitoweb:'sitoweb',
+  extra:'extra', addebitiextra:'addebitiextra', adempimenti:'adempimenti', blacklist:'blacklist', ical:'ical', condizioni:'condizioni', guidaospiti:'guidaospiti', sitoweb:'sitoweb', statistichesito:'statistichesito',
   impostazioni:'impostazioni', salvataggio:'salvataggio', utenti:'impostazioni',
 };
 var VOCI_PERMESSO = [
@@ -30884,6 +30912,7 @@ function renderPage(page) {
     reportpasti: renderReportPasti,
     blacklist: renderBlacklist,
     sitoweb: renderSitoWeb,
+    statistichesito: renderStatisticheSito,
     planner: renderPlanner, 'arrivi-partenze': renderArriviPartenze,
     checkineffettuati: renderCheckinEffettuati, checkouteffettuati: renderCheckoutEffettuati,
     contidasaldare: renderContiDaSaldare, corrispettivi: renderCorrispettiviPage,
@@ -31080,6 +31109,18 @@ document.addEventListener('DOMContentLoaded', async function() {
       // diversi (Amministratore/Reception) — era stato tolto il 13/08/2026 per entrare sempre
       // diretti, ma senza un login il PMS non può sapere CHI sta usando il programma in un dato
       // momento, quindi non può applicare permessi diversi a persone diverse.
+      // Email/password arrivate dall'Hub nell'indirizzo: le tengo da parte e le tolgo SUBITO dalla barra
+      // degli indirizzi, anche quando si è già collegati (prima restavano visibili e finivano nella cronologia).
+      var _autoMail = '', _autoPass = '';
+      try {
+        var _pAuto = new URLSearchParams(location.search);
+        _autoMail = _pAuto.get('autologin_email') || ''; _autoPass = _pAuto.get('autologin_password') || '';
+        if (_pAuto.has('autologin_email') || _pAuto.has('autologin_password')) {
+          _pAuto.delete('autologin_email'); _pAuto.delete('autologin_password');
+          var _resto = _pAuto.toString();
+          history.replaceState(null, '', location.pathname + (_resto ? '?' + _resto : '') + location.hash);
+        }
+      } catch (e) {}
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) {
         // Prova prima un accesso automatico — o da un "Cambia struttura" fatto da dentro questo
@@ -31091,8 +31132,8 @@ document.addEventListener('DOMContentLoaded', async function() {
           var autologin = JSON.parse(localStorage.getItem('pms_autologin_pending') || 'null');
           localStorage.removeItem('pms_autologin_pending');
           var paramsUrl = new URLSearchParams(location.search);
-          if (!autologin && paramsUrl.get('autologin_email') && paramsUrl.get('autologin_password')) {
-            autologin = { email: paramsUrl.get('autologin_email'), password: paramsUrl.get('autologin_password'), ts: Date.now() };
+          if (!autologin && _autoMail && _autoPass) {
+            autologin = { email: _autoMail, password: _autoPass, ts: Date.now() };
             // Toglie subito email/password dalla barra degli indirizzi, prima ancora di provare il
             // login — non deve restare visibile né nella cronologia del browser.
             history.replaceState(null, '', location.pathname + location.hash);
@@ -34917,6 +34958,572 @@ async function renderCorrispettiviPage(){
   }
   corrRender();
 }
+
+// ════ PORTATO DA VILLA AURORA: METEO + STATISTICHE SITO ════
+var _revMeteoCache = null; // null = non ancora caricato, {} = caricato (chiave = data "AAAA-MM-GG")
+var METEO_CODICI_PIOGGIA = [45,48,51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,99];
+var METEO_CODICI_SOLE = [0,1];
+var METEO_ETICHETTE = {
+  0:'☀️ Sole',1:'🌤 Prevalenza sole',2:'⛅ Parz. nuvoloso',3:'☁️ Nuvoloso',
+  45:'🌫 Nebbia',48:'🌫 Nebbia',
+  51:'🌦 Pioviggine',53:'🌦 Pioviggine',55:'🌧 Pioviggine forte',
+  56:'🌧 Pioggia gelata',57:'🌧 Pioggia gelata',
+  61:'🌧 Pioggia leggera',63:'🌧 Pioggia',65:'🌧 Pioggia forte',
+  66:'🌧 Pioggia gelata',67:'🌧 Pioggia gelata forte',
+  71:'🌨 Neve leggera',73:'🌨 Neve',75:'🌨 Neve forte',77:'🌨 Granelli di neve',
+  80:'🌦 Rovesci',81:'🌦 Rovesci',82:'⛈ Rovesci forti',
+  85:'🌨 Rovesci di neve',86:'🌨 Rovesci di neve forti',
+  95:'⛈ Temporale',96:'⛈ Temporale con grandine',99:'⛈ Temporale con grandine forte'
+};
+// Icone meteo disegnate (non emoji): tutte della stessa dimensione/stile, a colori, così nella
+// card Meteo della Dashboard non si vedono più simboli di "peso" visivo diverso tra loro (es. ☀️
+// piccola accanto a ⛈ più marcata). meteoCategoriaPerCodice() raggruppa i tanti codici Open-Meteo
+// in poche categorie disegnate; meteoIconaSVG() restituisce l'SVG pronto da inserire in una div
+// di dimensione fissa (width/height al 100% dell'SVG, così basta impostare la dimensione sul
+// contenitore esterno).
+function meteoCategoriaPerCodice(code){
+  if(code===0) return 'sole';
+  if(code===1) return 'pocoNuvoloso';
+  if(code===2) return 'parzNuvoloso';
+  if(code===3) return 'nuvoloso';
+  if(code===45||code===48) return 'nebbia';
+  if([51,53,55,56,57,61,63,65,66,67].indexOf(code)>=0) return 'pioggia';
+  if([71,73,75,77,85,86].indexOf(code)>=0) return 'neve';
+  if([80,81,82].indexOf(code)>=0) return 'rovesci';
+  if([95,96,99].indexOf(code)>=0) return 'temporale';
+  return 'nuvoloso';
+}
+var METEO_ICONE_SVG = {
+  sole: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><g stroke="#f59e0b" stroke-width="4" stroke-linecap="round"><line x1="32" y1="4" x2="32" y2="14"/><line x1="32" y1="50" x2="32" y2="60"/><line x1="4" y1="32" x2="14" y2="32"/><line x1="50" y1="32" x2="60" y2="32"/><line x1="12" y1="12" x2="19" y2="19"/><line x1="45" y1="45" x2="52" y2="52"/><line x1="12" y1="52" x2="19" y2="45"/><line x1="45" y1="19" x2="52" y2="12"/></g><circle cx="32" cy="32" r="14" fill="#fbbf24"/></svg>',
+  pocoNuvoloso: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><circle cx="26" cy="24" r="13" fill="#fbbf24"/><g stroke="#f59e0b" stroke-width="3" stroke-linecap="round"><line x1="26" y1="4" x2="26" y2="9"/><line x1="8" y1="24" x2="13" y2="24"/><line x1="12" y1="10" x2="15.5" y2="13.5"/></g><path d="M20 46a10 10 0 0 1 9-15 12 12 0 0 1 23 4 9 9 0 0 1-2 18H24a8 8 0 0 1-4-7z" fill="#e5e7eb"/></svg>',
+  parzNuvoloso: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="22" r="11" fill="#fbbf24"/><path d="M14 48a12 12 0 0 1 10-18 14 14 0 0 1 27 5 10 10 0 0 1-3 21H21a9 9 0 0 1-7-8z" fill="#d1d5db"/></svg>',
+  nuvoloso: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><path d="M12 46a13 13 0 0 1 11-19 15 15 0 0 1 29 5 11 11 0 0 1-3 24H20a10 10 0 0 1-8-10z" fill="#9ca3af"/></svg>',
+  nebbia: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><path d="M14 30a11 11 0 0 1 10-15 13 13 0 0 1 25 4 9 9 0 0 1-2 20H22a9 9 0 0 1-8-9z" fill="#cbd5e1"/><g stroke="#94a3b8" stroke-width="4" stroke-linecap="round"><line x1="8" y1="46" x2="56" y2="46"/><line x1="8" y1="54" x2="56" y2="54"/></g></svg>',
+  pioggia: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><path d="M12 34a12 12 0 0 1 10-17 14 14 0 0 1 27 5 10 10 0 0 1-3 22H20a9 9 0 0 1-8-10z" fill="#93c5fd"/><g fill="#2563eb"><path d="M20 48c0 3-2 5-4 5s-4-2-4-5c0-3 4-9 4-9s4 6 4 9z"/><path d="M36 50c0 3-2 5-4 5s-4-2-4-5c0-3 4-9 4-9s4 6 4 9z"/><path d="M52 48c0 3-2 5-4 5s-4-2-4-5c0-3 4-9 4-9s4 6 4 9z"/></g></svg>',
+  neve: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><path d="M12 32a12 12 0 0 1 10-17 14 14 0 0 1 27 5 10 10 0 0 1-3 20H20a9 9 0 0 1-8-8z" fill="#bfdbfe"/><g fill="#38bdf8"><circle cx="18" cy="50" r="3"/><circle cx="32" cy="54" r="3"/><circle cx="46" cy="50" r="3"/></g></svg>',
+  rovesci: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><circle cx="22" cy="20" r="9" fill="#fbbf24"/><path d="M14 36a11 11 0 0 1 9-15 13 13 0 0 1 25 4 9 9 0 0 1-2 19H22a9 9 0 0 1-8-8z" fill="#cbd5e1"/><g fill="#2563eb"><path d="M22 48c0 2.5-1.8 4.5-3.5 4.5S15 50.5 15 48c0-2.5 3.5-8 3.5-8s3.5 5.5 3.5 8z"/><path d="M40 50c0 2.5-1.8 4.5-3.5 4.5S33 52.5 33 50c0-2.5 3.5-8 3.5-8s3.5 5.5 3.5 8z"/></g></svg>',
+  temporale: '<svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><path d="M12 32a12 12 0 0 1 10-17 14 14 0 0 1 27 5 10 10 0 0 1-3 20H20a9 9 0 0 1-8-8z" fill="#64748b"/><path d="M34 34 24 50h8l-4 12 16-20h-9l5-8z" fill="#facc15"/></svg>'
+};
+function meteoIconaSVG(code){
+  return METEO_ICONE_SVG[meteoCategoriaPerCodice(code)] || METEO_ICONE_SVG.nuvoloso;
+}
+
+// Posizione della struttura per le previsioni: Impostazioni → Struttura (lat/lon), altrimenti Otranto.
+function meteoCoordinateStruttura(){
+  var s=DB.getObj('settings',{});
+  var lat=(typeof s.lat==='number' && !isNaN(s.lat)) ? s.lat : 40.1476;
+  var lon=(typeof s.lon==='number' && !isNaN(s.lon)) ? s.lon : 18.4903;
+  return {lat:lat, lon:lon};
+}
+async function _revCaricaMeteo(){
+  var pos=meteoCoordinateStruttura();
+  try{
+    var url='https://api.open-meteo.com/v1/forecast?latitude='+pos.lat+'&longitude='+pos.lon+'&daily=weathercode,temperature_2m_max,precipitation_sum&timezone=Europe%2FRome&forecast_days=16';
+    var res=await fetch(url);
+    var data=await res.json();
+    var cache={};
+    if(data && data.daily && data.daily.time){
+      data.daily.time.forEach(function(ds,i){
+        cache[ds]={ code:data.daily.weathercode[i], temp:data.daily.temperature_2m_max[i], pioggia:data.daily.precipitation_sum[i] };
+      });
+    }
+    _revMeteoCache=cache;
+  } catch(e){ _revMeteoCache={}; }
+  if(currentPage==='dashboard') renderDashboard();
+}
+function meteoInfoPerData(ds){
+  if(!_revMeteoCache) return null;
+  return _revMeteoCache[ds] || null;
+}
+
+function apriMeteoCompleto(){
+  if(_revMeteoCache===null){ _revCaricaMeteo(); showToast('Carico le previsioni…'); return; }
+  var s = DB.getObj('settings', {});
+  var pos = meteoCoordinateStruttura();
+  var localita = s.city || 'Otranto';
+
+  var giorni = Object.keys(_revMeteoCache).sort();
+  var righe = giorni.map(function(ds){
+    var m=_revMeteoCache[ds];
+    var dLabel=parseLD(ds).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+    return '<tr>'+
+      '<td>'+dLabel+'</td>'+
+      '<td><span style="display:inline-block;width:20px;height:20px;vertical-align:middle;margin-right:5px">'+meteoIconaSVG(m.code)+'</span><span style="vertical-align:middle">'+(METEO_ETICHETTE[m.code]||'—').replace(/^\S+\s*/,'')+'</span></td>'+
+      '<td style="text-align:right">'+Math.round(m.temp)+'°C</td>'+
+      '<td style="text-align:right">'+(m.pioggia!=null?m.pioggia+' mm':'—')+'</td>'+
+      '</tr>';
+  }).join('');
+
+  var linkGoogle = 'https://www.google.com/search?q=' + encodeURIComponent('meteo '+localita);
+  var linkIlMeteo = 'https://www.ilmeteo.it/meteo/' + encodeURIComponent(localita);
+  var link3bMeteo = 'https://www.3bmeteo.com/meteo/' + encodeURIComponent(localita.toLowerCase().replace(/\s+/g,'-'));
+
+  showModal('🌤 Meteo — '+localita,
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:12px">Previsioni per le coordinate impostate in Impostazioni → Struttura ('+pos.lat+', '+pos.lon+'). Per un dettaglio ancora maggiore (ora per ora, radar, allerte), apri uno dei siti meteo qui sotto.</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'+
+      '<a class="btn btn-sm" href="'+linkGoogle+'" target="_blank" rel="noopener">🔎 Google Meteo</a>'+
+      '<a class="btn btn-sm" href="'+linkIlMeteo+'" target="_blank" rel="noopener">🌦 iLMeteo.it</a>'+
+      '<a class="btn btn-sm" href="'+link3bMeteo+'" target="_blank" rel="noopener">☁️ 3BMeteo</a>'+
+    '</div>'+
+    '<div style="max-height:340px;overflow-y:auto"><table style="width:100%;font-size:12.5px"><thead><tr><th>Giorno</th><th>Condizioni</th><th style="text-align:right">Temp.</th><th style="text-align:right">Pioggia</th></tr></thead><tbody>'+righe+'</tbody></table></div>',
+    '<button class="btn" onclick="closeModal()">Chiudi</button>',
+    '480px'
+  );
+}
+
+async function _dashCaricaStatisticheSito(tod) {
+  var box = document.getElementById('dash-sitestats-body');
+  if (!box) return;
+  if (!supabaseClient || !supabaseReady) {
+    box.innerHTML = '<div style="font-size:12.5px;color:var(--text3)">Connessione non pronta</div>';
+    return;
+  }
+  try {
+    var inizio7 = addDays(tod, -6);
+    var res = await supabaseClient.from('site_visits').select('ts,session_id')
+      .gte('ts', inizio7 + 'T00:00:00Z')
+      .limit(20000);
+    if (res.error) throw res.error;
+    var visite = res.data || [];
+    var visiteOggi = visite.filter(function(v){ return (v.ts||'').slice(0,10) === tod; }).length;
+    var sessioniOggi = {};
+    visite.forEach(function(v){ if ((v.ts||'').slice(0,10) === tod && v.session_id) sessioniOggi[v.session_id] = true; });
+    var visite7 = visite.length;
+    if (document.getElementById('dash-sitestats-body') !== box) return; // pagina cambiata nel frattempo
+    box.innerHTML =
+      '<div style="display:flex;gap:26px;margin-bottom:4px">' +
+        '<div><div style="font-size:36px;font-weight:800;color:var(--text1)">'+visiteOggi+'</div><div style="font-size:13.5px;color:var(--text3)">Visite oggi</div></div>' +
+        '<div><div style="font-size:36px;font-weight:800;color:var(--text1)">'+Object.keys(sessioniOggi).length+'</div><div style="font-size:13.5px;color:var(--text3)">Visitatori oggi</div></div>' +
+      '</div>' +
+      '<div style="font-size:12.5px;color:var(--text3)">'+visite7+' visite negli ultimi 7 giorni</div>';
+  } catch (e) {
+    box.innerHTML = '<div style="font-size:12.5px;color:var(--text3)">Dati non disponibili (tabella site_visits non ancora creata?)</div>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// STATISTICHE SITO — legge la tabella "site_visits" su Supabase, alimentata
+// da un piccolo script (analytics.js) inserito nelle pagine del sito pubblico
+// gretashouse.it. Ogni riga = una visualizzazione di pagina. Nota: i dati di
+// visualizzazione/ricerca su Booking.com NON sono disponibili qui — Booking.com
+// non offre un accesso pubblico a queste statistiche; vanno controllate
+// direttamente nella sezione "Analisi"/"Performance" del suo Extranet.
+// ══════════════════════════════════════════════════════════════════════════
+window._ssGiorni = window._ssGiorni || 30;
+window._ssRangeDa = window._ssRangeDa || null;   // range personalizzato (date esplicite), sovrascrive _ssGiorni quando impostato
+window._ssRangeA = window._ssRangeA || null;
+window._ssUltimeVisite = window._ssUltimeVisite || []; // ultimo risultato caricato, riusato dal pulsante Esporta Excel
+
+function renderStatisticheSito() {
+  var el = document.getElementById('page-statistichesito');
+  if (!el) return;
+  el.innerHTML =
+    '<div class="page-header"><div><div class="page-title">📈 Statistiche sito</div><div class="page-subtitle">Visite al sito gretashouse.it — dati raccolti automaticamente</div></div></div>' +
+    '<div class="page-content" id="ss-body"><div style="padding:30px;color:var(--text3)">Caricamento statistiche…</div></div>';
+  _ssCaricaERendi();
+}
+
+function _ssPeriodo() {
+  // Se è impostato un range personalizzato (da/a) lo usa, altrimenti usa gli ultimi N giorni
+  if (window._ssRangeDa && window._ssRangeA) {
+    return { da: window._ssRangeDa, a: window._ssRangeA };
+  }
+  var giorniIndietro = window._ssGiorni || 30;
+  return { da: addDays(today(), -(giorniIndietro - 1)), a: today() };
+}
+
+async function _ssCaricaERendi() {
+  var body = document.getElementById('ss-body');
+  if (!body) return;
+  if (!supabaseClient || !supabaseReady) {
+    body.innerHTML = '<div class="card"><div class="modal-body">Il collegamento a Supabase non è pronto. Riprova tra qualche secondo, oppure controlla la connessione in Impostazioni.</div></div>';
+    return;
+  }
+  try {
+    var periodo = _ssPeriodo();
+    var res = await supabaseClient.from('site_visits').select('*')
+      .gte('ts', periodo.da + 'T00:00:00Z')
+      .lte('ts', periodo.a + 'T23:59:59Z')
+      .order('ts', { ascending: true })
+      .limit(20000);
+    if (res.error) throw res.error;
+    var visite = res.data || [];
+    window._ssUltimeVisite = visite;
+
+    // Ricerche di disponibilità (date desiderate dai clienti) nello stesso periodo — tabella
+    // separata e facoltativa: se non esiste ancora (site_searches_setup.sql non eseguito), la
+    // pagina mostra comunque le visite normalmente, solo senza la sezione "Domanda per periodo".
+    var ricerche = [];
+    try {
+      var resR = await supabaseClient.from('site_searches').select('*')
+        .gte('ts', periodo.da + 'T00:00:00Z')
+        .lte('ts', periodo.a + 'T23:59:59Z')
+        .limit(20000);
+      if (!resR.error) ricerche = resR.data || [];
+    } catch (e2) { /* tabella site_searches non ancora creata: nessun problema */ }
+    window._ssUltimeRicerche = ricerche;
+
+    body.innerHTML = _ssRenderHTML(visite, periodo, ricerche);
+  } catch (e) {
+    body.innerHTML = '<div class="card"><div class="modal-body" style="color:var(--danger)">' +
+      'Errore nel caricare le statistiche: ' + (e && e.message ? e.message : e) +
+      '<div style="font-size:12px;color:var(--text3);margin-top:10px">Se è la prima volta che apri questa pagina, probabilmente la tabella "site_visits" non esiste ancora su Supabase: vedi le istruzioni fornite per crearla (SQL da eseguire una sola volta).</div>' +
+      '</div></div>';
+  }
+}
+
+function _ssCambiaPeriodo(g) {
+  window._ssGiorni = g;
+  window._ssRangeDa = null;
+  window._ssRangeA = null;
+  _ssCaricaERendi();
+}
+
+function _ssApplicaRange() {
+  var da = (document.getElementById('ss-range-da')||{}).value;
+  var a = (document.getElementById('ss-range-a')||{}).value;
+  if (!da || !a) { showToast('Seleziona entrambe le date'); return; }
+  if (da > a) { showToast('La data "Da" deve essere prima della data "A"'); return; }
+  window._ssRangeDa = da;
+  window._ssRangeA = a;
+  _ssCaricaERendi();
+}
+
+function _ssResetRange() {
+  window._ssRangeDa = null;
+  window._ssRangeA = null;
+  window._ssGiorni = 30;
+  _ssCaricaERendi();
+}
+
+// Imposta subito il periodo a "solo oggi", senza dover scrivere la data a mano nei campi Da/A.
+function _ssOggi() {
+  var t = today();
+  window._ssRangeDa = t;
+  window._ssRangeA = t;
+  _ssCaricaERendi();
+}
+
+function _ssEsportaExcel() {
+  var visite = window._ssUltimeVisite || [];
+  var periodo = _ssPeriodo();
+  var tuttePrenotazioni = (DB.get('bookings') || []).filter(function(b){ return !b.escludiConteggi && b.status!=='cancellata'; });
+  var prenotazioniPeriodo = tuttePrenotazioni.filter(function(b){
+    var d = (b.createdAt||'').slice(0,10);
+    return d && d >= periodo.da && d <= periodo.a;
+  });
+  var ricerche = window._ssUltimeRicerche || [];
+  if (!visite.length && !prenotazioniPeriodo.length && !ricerche.length) { showToast('Nessun dato da esportare in questo periodo'); return; }
+  if (!window.XLSX) { showToast('SheetJS non disponibile'); return; }
+
+  var righeVisite = visite.map(function(v){
+    return {
+      Data: (v.ts||'').slice(0,10),
+      Ora: (v.ts||'').slice(11,19),
+      Pagina: v.page || '',
+      Lingua: v.lang || '',
+      Provenienza: v.referrer || 'Diretto',
+      Dispositivo: v.device || '',
+      Sessione: v.session_id || ''
+    };
+  });
+
+  var righePortali = prenotazioniPeriodo.map(function(b){
+    return {
+      'Data prenotazione': (b.createdAt||'').slice(0,10),
+      Portale: b.source || 'Diretto',
+      Ospite: b.guestName || '',
+      'Check-in': b.checkin || '',
+      'Check-out': b.checkout || '',
+      Notti: nights(b.checkin, b.checkout),
+      Totale: Number(b.totalPrice||0)
+    };
+  });
+
+  var righeRicerche = ricerche.map(function(rc){
+    return {
+      'Data ricerca': (rc.ts||'').slice(0,10),
+      'Check-in richiesto': rc.checkin || '',
+      'Check-out richiesto': rc.checkout || '',
+      Adulti: rc.adults || '',
+      Bambini: rc.children || '',
+      Esito: rc.esito === 'non_disponibile' ? 'Non disponibile' : 'Disponibile',
+      Sessione: rc.session_id || ''
+    };
+  });
+
+  var wb = XLSX.utils.book_new();
+  if (righeVisite.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righeVisite), 'Visite sito');
+  if (righePortali.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righePortali), 'Prenotazioni per portale');
+  if (righeRicerche.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righeRicerche), 'Ricerche periodi');
+  XLSX.writeFile(wb, 'statistiche-sito-'+periodo.da+'_'+periodo.a+'.xlsx');
+}
+
+function _ssKpi(label, val, colore, icona) {
+  return '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:10px;border-top:4px solid ' + colore + ';padding:16px 18px;flex:1;min-width:160px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">' + label + '</div>' +
+      '<div style="width:30px;height:30px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:15px">' + icona + '</div>' +
+    '</div>' +
+    '<div style="font-size:30px;font-weight:800;color:var(--text1)">' + val + '</div>' +
+  '</div>';
+}
+
+function _ssRenderHTML(visite, periodo, ricerche) {
+  ricerche = ricerche || [];
+  var totVisite = visite.length;
+  var sessioni = {};
+  visite.forEach(function(v){ if (v.session_id) sessioni[v.session_id] = true; });
+  var totSessioni = Object.keys(sessioni).length;
+  var oggi = today();
+  var visiteOggi = visite.filter(function(v){ return (v.ts || '').slice(0,10) === oggi; }).length;
+
+  var giorniArr = [];
+  var dCursor = periodo.da;
+  while (dCursor <= periodo.a) { giorniArr.push(dCursor); dCursor = addDays(dCursor, 1); }
+  var perGiorno = giorniArr.map(function(g){
+    return visite.filter(function(v){ return (v.ts || '').slice(0,10) === g; }).length;
+  });
+  var maxGiorno = Math.max.apply(null, perGiorno.concat([1]));
+
+  var perPagina = {};
+  visite.forEach(function(v){ var p = v.page || '(sconosciuta)'; perPagina[p] = (perPagina[p]||0) + 1; });
+  var paginePopolari = Object.entries(perPagina).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 10);
+
+  var perDevice = { desktop: 0, mobile: 0 };
+  visite.forEach(function(v){ var d = v.device === 'mobile' ? 'mobile' : 'desktop'; perDevice[d] = (perDevice[d]||0) + 1; });
+
+  var perLingua = {};
+  visite.forEach(function(v){ var l = v.lang || 'it'; perLingua[l] = (perLingua[l]||0) + 1; });
+
+  var perProvenienza = {};
+  visite.forEach(function(v){
+    var ref = v.referrer, src = 'Diretto / sconosciuto';
+    if (ref) { try { src = new URL(ref).hostname.replace('www.',''); } catch(e) { src = 'Altro'; } }
+    perProvenienza[src] = (perProvenienza[src]||0) + 1;
+  });
+  var provenienzeTop = Object.entries(perProvenienza).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 8);
+
+  // Prenotazioni per portale (Diretto/Booking.com/Airbnb/ecc.) nello stesso periodo selezionato —
+  // qui usiamo le prenotazioni vere già registrate nel PMS (l'unico dato disponibile per le OTA,
+  // dato che nessun portale offre un'API pubblica per click/visualizzazioni: vedi nota in fondo).
+  var tuttePrenotazioni = (DB.get('bookings') || []).filter(function(b){ return !b.escludiConteggi && b.status!=='cancellata'; });
+  var prenotazioniPeriodo = tuttePrenotazioni.filter(function(b){
+    var d = (b.createdAt||'').slice(0,10);
+    return d && d >= periodo.da && d <= periodo.a;
+  });
+  var perFonte = {};
+  prenotazioniPeriodo.forEach(function(b){
+    var f = b.source || 'Diretto';
+    if (!perFonte[f]) perFonte[f] = { n: 0, notti: 0, incasso: 0 };
+    perFonte[f].n++;
+    perFonte[f].notti += nights(b.checkin, b.checkout);
+    perFonte[f].incasso += Number(b.totalPrice||0);
+  });
+  var fontiOrdinate = Object.entries(perFonte).sort(function(a,b){ return b[1].n - a[1].n; });
+  var maxFonteN = Math.max.apply(null, fontiOrdinate.map(function(f){return f[1].n;}).concat([1]));
+
+  // Domanda per periodo: ogni ricerca sul sito ha un check-in/check-out "desiderato" — qui
+  // contiamo, per ogni notte di soggiorno richiesta, a quale mese appartiene (per capire quali
+  // mesi futuri interessano di più ai clienti) e le date/coppie di date più richieste in assoluto.
+  var notiPerMese = {};
+  var perCoppiaDate = {};
+  ricerche.forEach(function(rc){
+    var ci = rc.checkin, co = rc.checkout;
+    if (!ci || !co) return;
+    var chiaveCoppia = fmtDate(ci) + ' → ' + fmtDate(co);
+    if (!perCoppiaDate[chiaveCoppia]) perCoppiaDate[chiaveCoppia] = { n: 0, ci: ci, notti: nights(ci, co) };
+    perCoppiaDate[chiaveCoppia].n++;
+    var d = ci;
+    var guardia = 0;
+    while (d < co && guardia < 400) {
+      var mese = d.slice(0,7); // YYYY-MM
+      notiPerMese[mese] = (notiPerMese[mese]||0) + 1;
+      d = addDays(d, 1);
+      guardia++;
+    }
+  });
+  var mesiOrdinati = Object.keys(notiPerMese).sort();
+  var maxNottiMese = Math.max.apply(null, mesiOrdinati.map(function(m){return notiPerMese[m];}).concat([1]));
+  var coppieTop = Object.entries(perCoppiaDate).sort(function(a,b){ return b[1].n - a[1].n; }); // tutti i periodi, non solo i primi 10
+  var MESI_IT = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  function etichettaMese(m){ var p = m.split('-'); return MESI_IT[parseInt(p[1],10)-1] + ' ' + p[0]; }
+  var ricercheSenzaDisponibilita = ricerche.filter(function(rc){ return rc.esito === 'non_disponibile'; }).length;
+
+  // Riga dedicata ai "Periodi più richiesti": etichetta (data → data + notti) su una riga intera,
+  // così non viene mai tagliata, e la barra colorata sotto — a differenza di barRow, che affianca
+  // etichetta e barra sulla stessa riga stringendo l'etichetta a 150px (va bene per mesi/pagine, ma
+  // tronca le date "gg/mm/aaaa → gg/mm/aaaa").
+  function periodoRow(label, notti, val, max, colore) {
+    var pct = max > 0 ? Math.round(val/max*100) : 0;
+    return '<div style="margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:3px">' +
+        '<div style="font-size:12.5px;color:var(--text2)">'+label+' <span style="color:var(--text3);font-weight:600">· '+notti+' nott'+(notti===1?'e':'i')+'</span></div>' +
+        '<div style="font-size:12.5px;font-weight:700;white-space:nowrap">'+val+' ricerc'+(val===1?'a':'he')+'</div>' +
+      '</div>' +
+      '<div style="background:var(--surface2);border-radius:5px;height:14px;overflow:hidden">' +
+        '<div style="width:'+Math.max(pct,3)+'%;background:'+(colore||'var(--accent)')+';height:100%"></div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function barRow(label, val, max, colore) {
+    var pct = max > 0 ? Math.round(val/max*100) : 0;
+    return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+      '<div style="width:150px;font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+label+'">'+label+'</div>' +
+      '<div style="flex:1;background:var(--surface2);border-radius:5px;height:16px;overflow:hidden">' +
+        '<div style="width:'+pct+'%;background:'+(colore||'var(--accent)')+';height:100%"></div>' +
+      '</div>' +
+      '<div style="width:40px;text-align:right;font-size:12.5px;font-weight:700">'+val+'</div>' +
+    '</div>';
+  }
+
+  var chartW = 700, chartH = 90, barGap = 2;
+  var barW = giorniArr.length > 0 ? (chartW / giorniArr.length - barGap) : 0;
+  var barsHtml = perGiorno.map(function(v, idx){
+    var h = maxGiorno > 0 ? Math.max(2, (v/maxGiorno) * chartH) : 2;
+    var x = idx * (barW + barGap);
+    var y = chartH - h;
+    return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(barW,1).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="var(--accent)" rx="2"><title>'+giorniArr[idx]+': '+v+' visite</title></rect>';
+  }).join('');
+
+  var rangeAttivo = !!(window._ssRangeDa && window._ssRangeA);
+  var oggiAttivo = rangeAttivo && window._ssRangeDa===today() && window._ssRangeA===today();
+  var periodoBtns = '<button class="btn btn-sm'+(oggiAttivo?' btn-primary':'')+'" onclick="_ssOggi()">📅 Oggi</button> ' +
+    [7,30,90].map(function(g){
+      var active = !rangeAttivo && g === window._ssGiorni;
+      return '<button class="btn btn-sm'+(active?' btn-primary':'')+'" onclick="_ssCambiaPeriodo('+g+')">'+g+' giorni</button>';
+    }).join(' ');
+
+  var etichettaPeriodo = rangeAttivo
+    ? ('Dal '+fmtDate(periodo.da)+' al '+fmtDate(periodo.a))
+    : ('Ultimi '+(window._ssGiorni||30)+' giorni');
+
+  var etichetteLingua = { it: '🇮🇹 Italiano', en: '🇬🇧 Inglese', fr: '🇫🇷 Francese' };
+
+  return (
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">' +
+      '<div style="font-size:12.5px;color:var(--text3)">'+etichettaPeriodo+'</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+periodoBtns+
+        '<button class="btn btn-sm" onclick="_ssEsportaExcel()">📊 Esporta Excel</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px">' +
+      '<div class="modal-body" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">' +
+        '<div class="form-group" style="margin:0">' +
+          '<label style="font-size:11px">Da</label>' +
+          '<input type="date" id="ss-range-da" value="'+(periodo.da||'')+'" style="padding:6px 8px;font-size:13px">' +
+        '</div>' +
+        '<div class="form-group" style="margin:0">' +
+          '<label style="font-size:11px">A</label>' +
+          '<input type="date" id="ss-range-a" value="'+(periodo.a||'')+'" style="padding:6px 8px;font-size:13px">' +
+        '</div>' +
+        '<button class="btn btn-sm btn-primary" onclick="_ssApplicaRange()">Filtra</button>' +
+        (rangeAttivo ? '<button class="btn btn-sm" onclick="_ssResetRange()">↺ Torna al periodo standard</button>' : '') +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">' +
+      _ssKpi('Visite totali', totVisite, '#1a73e8', '👁') +
+      _ssKpi('Sessioni uniche', totSessioni, '#16a34a', '👤') +
+      _ssKpi('Visite di oggi', visiteOggi, '#f59e0b', '📅') +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px">' +
+      '<div class="card-header"><span class="card-title">Andamento visite</span></div>' +
+      '<div class="modal-body">' +
+        (totVisite ?
+          '<svg viewBox="0 0 '+chartW+' '+chartH+'" width="100%" height="'+chartH+'" preserveAspectRatio="none">'+barsHtml+'</svg>' +
+          '<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);margin-top:4px">' +
+            '<span>'+fmtDate(giorniArr[0])+'</span><span>'+fmtDate(giorniArr[giorniArr.length-1])+'</span>' +
+          '</div>'
+        : '<div style="color:var(--text3);font-size:13px">Ancora nessuna visita registrata in questo periodo.</div>') +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px">' +
+      '<div class="card-header"><span class="card-title">Domanda per periodo — quando vogliono soggiornare i clienti</span></div>' +
+      '<div class="modal-body">' +
+        (ricerche.length ?
+          '<div style="font-size:11.5px;color:var(--text3);margin-bottom:12px">'+ricerche.length+' ricerche effettuate in questo periodo'+(ricercheSenzaDisponibilita?' · '+ricercheSenzaDisponibilita+' senza disponibilità trovata':'')+'</div>' +
+          '<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Notti richieste per mese di soggiorno</div>' +
+          mesiOrdinati.map(function(m){ return barRow(etichettaMese(m), notiPerMese[m], maxNottiMese, '#8b5cf6'); }).join('') +
+          '<div style="font-size:12px;font-weight:700;color:var(--text2);margin:16px 0 6px">Periodi più richiesti ('+coppieTop.length+')</div>' +
+          '<div style="'+(coppieTop.length>8?'max-height:360px;overflow-y:auto;padding-right:4px':'')+'">' +
+            coppieTop.map(function(c){ return periodoRow(c[0], c[1].notti, c[1].n, coppieTop[0][1].n, '#f59e0b'); }).join('') +
+          '</div>'
+        : '<div style="color:var(--text3);font-size:13px">Ancora nessuna ricerca registrata in questo periodo. Se hai appena attivato questa funzione, controlla di aver eseguito lo script SQL "site_searches_setup.sql" su Supabase e di aver caricato il modulo di prenotazione aggiornato.</div>') +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap">' +
+      '<div class="card" style="flex:1;min-width:280px">' +
+        '<div class="card-header"><span class="card-title">Pagine più viste</span></div>' +
+        '<div class="modal-body">' +
+          (paginePopolari.length ? paginePopolari.map(function(p){ return barRow(p[0], p[1], paginePopolari[0][1]); }).join('') : '<div style="color:var(--text3);font-size:13px">Nessun dato ancora</div>') +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="flex:1;min-width:280px">' +
+        '<div class="card-header"><span class="card-title">Da dove arrivano</span></div>' +
+        '<div class="modal-body">' +
+          (provenienzeTop.length ? provenienzeTop.map(function(p){ return barRow(p[0], p[1], provenienzeTop[0][1], '#16a34a'); }).join('') : '<div style="color:var(--text3);font-size:13px">Nessun dato ancora</div>') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">' +
+      '<div class="card" style="flex:1;min-width:220px">' +
+        '<div class="card-header"><span class="card-title">Dispositivo</span></div>' +
+        '<div class="modal-body">' +
+          barRow('📱 Mobile', perDevice.mobile||0, Math.max(perDevice.mobile||0, perDevice.desktop||0, 1)) +
+          barRow('💻 Desktop', perDevice.desktop||0, Math.max(perDevice.mobile||0, perDevice.desktop||0, 1), '#f59e0b') +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="flex:1;min-width:220px">' +
+        '<div class="card-header"><span class="card-title">Lingua</span></div>' +
+        '<div class="modal-body">' +
+          (Object.keys(perLingua).length ? Object.entries(perLingua).sort(function(a,b){return b[1]-a[1];}).map(function(l){
+            return barRow(etichetteLingua[l[0]] || l[0], l[1], totVisite||1, '#8b5cf6');
+          }).join('') : '<div style="color:var(--text3);font-size:13px">Nessun dato ancora</div>') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-top:16px">' +
+      '<div class="card-header"><span class="card-title">Prenotazioni per portale (stesso periodo)</span></div>' +
+      '<div class="modal-body">' +
+        (fontiOrdinate.length ?
+          '<div style="display:flex;flex-direction:column;gap:10px">' +
+            fontiOrdinate.map(function(f){
+              var nome = f[0], d = f[1];
+              var pct = maxFonteN > 0 ? Math.round(d.n/maxFonteN*100) : 0;
+              return '<div>' +
+                '<div style="display:flex;align-items:center;gap:10px;margin-bottom:3px">' +
+                  '<div style="width:150px;font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+nome+'">'+iconeFonteHTML(nome)+' '+nome+'</div>' +
+                  '<div style="flex:1;background:var(--surface2);border-radius:5px;height:16px;overflow:hidden">' +
+                    '<div style="width:'+pct+'%;background:#0ea5e9;height:100%"></div>' +
+                  '</div>' +
+                  '<div style="width:110px;text-align:right;font-size:12.5px;font-weight:700">'+d.n+' prenot. · '+fmtCurrency(d.incasso)+'</div>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>'
+        : '<div style="color:var(--text3);font-size:13px">Nessuna prenotazione registrata in questo periodo</div>') +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-top:16px;background:var(--surface2)">' +
+      '<div class="modal-body" style="font-size:12.5px;color:var(--text3)">' +
+        '💡 I <strong>click/visualizzazioni</strong> su Booking.com, Airbnb, Google e gli altri portali non sono disponibili qui — nessuno di questi offre un accesso pubblico a queste statistiche. Si trovano solo direttamente nelle rispettive sezioni "Analisi"/"Performance" di ogni portale. La tabella qui sopra mostra invece le <strong>prenotazioni realmente arrivate</strong> da ciascun canale, l\'unico dato confrontabile che il PMS può calcolare da solo.' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+// Descrizione e foto per ciascuna tipologia di camera, usate dal sito pubblico (prenota.html) al posto
+// del testo generico fisso. Salvate come elenco {id: tipologia, descrizione, foto:[url,...]}.
+// Le foto vengono caricate direttamente dal PC su Supabase Storage (bucket "room-photos").
 
 </script>
 </body>
