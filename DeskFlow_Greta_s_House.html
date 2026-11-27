@@ -340,7 +340,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 27/11/2026 · 10:20</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 27/11/2026 · 11:05</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -21070,7 +21070,7 @@ function renderCheckinEffettuati() {
       <div class="flex-row">
         <button class="btn btn-sm" onclick="checkinEffExportXLSX()">📊 Esporta Excel</button>
         <label class="btn btn-sm" style="cursor:pointer">📋 Importa check-in (vecchio gestionale)<input type="file" accept=".xlsx,.csv" onchange="importCheckinsXLSX(event)" style="display:none"></label>
-        <button class="btn btn-sm" onclick="preparaDatiIstatBulk(window._checkinEffCorrenti||[])">📋 ISTAT/STU (tutti)</button>
+        <button class="btn btn-sm" onclick="spotApri(window._checkinEffCorrenti||[],'SPOT — tutti i check-in mostrati')">🏛 SPOT (tutti)</button>
         <button class="btn btn-sm btn-primary" onclick="alloggiatiBulkActionMenu()">📤 Alloggiati Web (tutte)</button>
       </div>
     </div>
@@ -21151,7 +21151,7 @@ function renderCheckinEffettuati() {
                     <td>${statusBadge(b.status)}</td>
                     <td style="white-space:nowrap">
                       <button class="btn btn-sm" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bg)" onclick="openDettaglioCheckinEffettuato('${b.id}')" title="Check-in effettuato">✓ 📄 Documenti</button>
-                      <button class="btn btn-sm" onclick="preparaDatiIstatSingolo('${b.id}')" title="Prepara i dati ISTAT/STU per questa prenotazione">📋 ISTAT/STU</button>
+                      <button class="btn btn-sm" onclick="spotApri([DB.get('bookings').find(function(x){return x.id==='${b.id}';})],'SPOT — ${(b.guestName||'').replace(/['"<>\\]/g,'')}')" title="Scarica il file per SPOT Puglia e i dati di residenza">🏛 SPOT</button>
                       <button class="btn btn-sm" style="${b.alloggiatiWebInviatoAt?'background:var(--green-bg);color:var(--green)':''}" onclick="alloggiatiActionMenu('${b.id}')" title="${b.alloggiatiWebInviatoAt?'✓ Già inviata il '+fmtDate(b.alloggiatiWebInviatoAt.slice(0,10))+' — clicca per rinviare':'Invia o scarica i dati Alloggiati Web per questa prenotazione'}">${b.alloggiatiWebInviatoAt?'✓📤':'📤'} Alloggiati</button>
                     </td>
                   </tr>`;
@@ -21410,7 +21410,7 @@ function renderCheckoutEffettuati() {
       </div>
       <div class="flex-row">
         <button class="btn btn-sm" onclick="checkoutEffExportXLSX()">📊 Esporta Excel</button>
-        <button class="btn btn-sm" onclick="preparaDatiIstatBulk(window._checkoutEffCorrenti||[])">📋 ISTAT/STU (tutti)</button>
+        <button class="btn btn-sm" onclick="spotApri(window._checkoutEffCorrenti||[],'SPOT — tutte le partenze mostrate')">🏛 SPOT (tutti)</button>
       </div>
     </div>
     <div class="page-content">
@@ -21490,7 +21490,7 @@ function renderCheckoutEffettuati() {
                       <button class="btn btn-sm" onclick="apriContoScegli('${b.id}')">🧾 Conto</button>
                       <button class="btn btn-sm" title="Invia il conto per email" onclick="inviaRicevutaPrenotazione('${b.id}')">📧</button>
                       <button class="btn btn-sm" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bg)" onclick="openDettaglioCheckinEffettuato('${b.id}')" title="Check-in effettuato">✓ 📄 Documenti</button>
-                      <button class="btn btn-sm" onclick="preparaDatiIstatSingolo('${b.id}')" title="Prepara i dati ISTAT/STU per questa prenotazione">📋 ISTAT/STU</button>
+                      <button class="btn btn-sm" onclick="spotApri([DB.get('bookings').find(function(x){return x.id==='${b.id}';})],'SPOT — ${(b.guestName||'').replace(/['"<>\\]/g,'')}')" title="Scarica il file per SPOT Puglia e i dati di residenza">🏛 SPOT</button>
                       <button class="btn btn-sm" style="${b.alloggiatiWebInviatoAt?'background:var(--green-bg);color:var(--green)':''}" onclick="alloggiatiActionMenu('${b.id}')" title="${b.alloggiatiWebInviatoAt?'✓ Già inviata il '+fmtDate(b.alloggiatiWebInviatoAt.slice(0,10))+' — clicca per rinviare':'Invia o scarica i dati Alloggiati Web per questa prenotazione'}">${b.alloggiatiWebInviatoAt?'✓📤':'📤'} Alloggiati</button>
                     </td>
                   </tr>`;
@@ -21988,6 +21988,77 @@ function mostraModalIstat(titolo, righe) {
     '<button class="btn" onclick="closeModal()">Chiudi</button>'+
     (righe.length ? '<button class="btn" onclick="copiaTestoIstat()">📋 Copia testo</button><button class="btn btn-primary" onclick="esportaExcelIstat()">📊 Esporta Excel</button>' : '')
   );
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// SPOT (Puglia) — dati per il portale regionale SPOT Easy (spoteasy.ect.regione.puglia.it).
+// Per le locazioni turistiche SPOT Easy vuole: (1) il file .txt "scheda Alloggiati" (stesso formato
+// di Alloggiati Web) da caricare con "Carica scheda Alloggiati"; (2) a caricamento fatto, i dati di
+// residenza di ogni ospite (Stato / Comune / Provincia). Qui prepariamo entrambi.
+// ════════════════════════════════════════════════════════════════════════════
+var _spotRighe = [];
+function spotResidenzaOspite(c) {
+  var cit = (c.cittadinanza || 'Italia').trim();
+  var stato = (c.statoResidenza || '').trim() || cit || 'Italia';
+  var comune = (c.residenza || '').trim(), prov = '';
+  if (stato.toLowerCase() === 'italia' && comune) { var ci = awComuneInfo(comune); if (ci && ci.provincia) prov = ci.provincia.toUpperCase(); }
+  return { stato: stato, comune: comune, prov: prov };
+}
+function spotApri(bookings, titolo) {
+  bookings = (bookings || []).filter(function(b) { return b && b.componenti && b.componenti.length && b.status !== 'cancellata'; });
+  var oggi = today(), ieri = addDays(oggi, -1);
+  var righe = [], fuori = 0;
+  bookings.forEach(function(b) {
+    if (b.checkin < ieri) fuori++;
+    b.componenti.forEach(function(c) {
+      if (!(c.cognome && c.cognome.trim())) return;
+      var r = spotResidenzaOspite(c);
+      righe.push({ arrivo: b.checkin, partenza: b.checkout, notti: nights(b.checkin, b.checkout), cognome: c.cognome, nome: c.nome || '', stato: r.stato, comune: r.comune, prov: r.prov,
+        manca: (r.stato.toLowerCase() === 'italia' && !r.comune) });
+    });
+  });
+  righe.sort(function(a, b) { return a.arrivo.localeCompare(b.arrivo) || a.cognome.localeCompare(b.cognome); });
+  _spotRighe = righe;
+  var nManca = righe.filter(function(r) { return r.manca; }).length;
+  var tab = righe.length ? '<div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:6px"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+    '<tr style="color:var(--text3);font-size:11px;position:sticky;top:0;background:var(--surface2)"><td style="padding:5px 6px">Ospite</td><td>Arrivo</td><td>Partenza</td><td>Stato</td><td>Comune</td><td>Prov.</td></tr>' +
+    righe.map(function(r) {
+      return '<tr style="border-top:1px solid var(--border)"><td style="padding:4px 6px">' + evEsc(r.cognome + ' ' + r.nome) + '</td><td>' + fmtDate(r.arrivo) + '</td><td>' + fmtDate(r.partenza) + '</td><td>' + evEsc(r.stato) + '</td><td' + (r.manca ? ' style="color:var(--red);font-weight:700"' : '') + '>' + (evEsc(r.comune) || (r.manca ? 'mancante' : '—')) + '</td><td>' + evEsc(r.prov) + '</td></tr>';
+    }).join('') + '</table></div>' : '<div style="color:var(--text3);padding:12px 0;text-align:center">Nessun ospite con dati di check-in da comunicare.</div>';
+  showModal(titolo || 'SPOT — Regione Puglia',
+    '<div style="font-size:12.5px;line-height:1.6">' +
+    '<div style="font-weight:700;margin-bottom:4px">1️⃣ File da caricare su SPOT Easy</div>' +
+    '<div style="color:var(--text2);margin-bottom:6px">Scarica il file e caricalo in SPOT Easy con <strong>Carica scheda Alloggiati</strong>. È lo stesso formato di Alloggiati Web.</div>' +
+    '<button class="btn btn-primary btn-sm" onclick="spotScaricaFile()"' + (righe.length ? '' : ' disabled') + '>⬇ Scarica file SPOT (.txt)</button>' +
+    (fuori ? '<div style="background:#fff3cd;color:#856404;border-radius:6px;padding:7px 9px;margin-top:8px">⚠ ' + fuori + ' prenotazion' + (fuori === 1 ? 'e è' : 'i sono') + ' con arrivo di oltre 1 giorno fa: SPOT Easy accetta il file solo per arrivi di oggi o di ieri. Per le altre inserisci a mano solo i dati statistici, oppure controlla con l\'assistenza SPOT.</div>' : '') +
+    '<div style="font-weight:700;margin:14px 0 4px">2️⃣ Dati di residenza da confermare dopo il caricamento</div>' +
+    '<div style="color:var(--text2);margin-bottom:6px">Dopo il caricamento SPOT ti chiede la residenza degli ospiti (se la conosci). Eccola, pronta da copiare.' + (nManca ? ' <span style="color:var(--red);font-weight:700">' + nManca + ' italiani senza comune di residenza: completalo nel check-in.</span>' : '') + '</div>' +
+    tab +
+    '<div style="margin-top:10px;color:var(--text3);font-size:11.5px">Ricorda: il mese va completato entro il <strong>10 del mese successivo</strong>; dopo la trasmissione non si può più modificare.</div>' +
+    '</div>',
+    '<button class="btn" onclick="closeModal()">Chiudi</button>' +
+    (righe.length ? '<button class="btn" onclick="spotCopia()">📋 Copia residenze</button><button class="btn" onclick="spotExcel()">📊 Esporta Excel</button>' : ''),
+    '720px');
+  window._spotBookings = bookings;
+}
+function spotScaricaFile() {
+  var r = alloggiatiTestoElenco(window._spotBookings || []);
+  if (!r.testo) { showToast('Nessun dato da esportare'); return; }
+  if (r.problemi.length && !confirm('Attenzione, ' + r.problemi.length + ' dati da completare:\n\n' + r.problemi.slice(0, 6).join('\n') + '\n\nScaricare lo stesso il file?')) return;
+  downloadTextFile('spot-puglia-' + today() + '.txt', r.testo);
+  showToast('File SPOT scaricato — ' + r.righe + ' ospiti');
+}
+function spotCopia() {
+  var t = 'Cognome\tNome\tArrivo\tPartenza\tStato residenza\tComune residenza\tProvincia\n' + _spotRighe.map(function(r) { return [r.cognome, r.nome, fmtDataPlain(r.arrivo), fmtDataPlain(r.partenza), r.stato, r.comune, r.prov].join('\t'); }).join('\n');
+  var ok = function() { showToast('Residenze copiate negli appunti'); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok); else evMostraTesto(t);
+}
+function spotExcel() {
+  if (typeof XLSX === 'undefined') { showToast('Libreria XLSX non disponibile'); return; }
+  var ws = XLSX.utils.aoa_to_sheet([['Cognome', 'Nome', 'Arrivo', 'Partenza', 'Notti', 'Stato residenza', 'Comune residenza', 'Provincia']].concat(_spotRighe.map(function(r) { return [r.cognome, r.nome, fmtDataPlain(r.arrivo), fmtDataPlain(r.partenza), r.notti, r.stato, r.comune, r.prov]; })));
+  ws['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 7 }, { wch: 18 }, { wch: 22 }, { wch: 10 }];
+  var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'SPOT'); XLSX.writeFile(wb, 'spot-residenze-' + today() + '.xlsx');
 }
 
 function copiaTestoIstat() {
