@@ -340,7 +340,7 @@ tr:hover td{background:var(--surface2)}
       <h1>DeskFlow Greta's House</h1>
       <span id="prop-name">La mia struttura</span>
       <span id="utente-corrente-badge" style="display:none;font-size:10.5px;font-weight:700;color:var(--accent);margin-top:2px"></span>
-      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 27/11/2026 · 11:05</span>
+      <span id="app-build-tag" title="Cambia ad ogni nuova versione del file: se dopo aver caricato su GitHub e ricaricato la pagina (F5/Ctrl+Shift+R) questo codice è diverso da prima, il browser ha davvero preso la versione nuova" style="display:block;font-size:9.5px;color:var(--text3,#999);opacity:.65;margin-top:2px;letter-spacing:.3px">Build 27/11/2026 · 16:10</span>
     </div>
     <button id="btn-refresh-globale" onclick="refreshDatiCorrenti()" title="Aggiorna tutti i dati senza cambiare pagina" style="width:calc(100% - 24px);margin:0 12px 8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
       <span id="btn-refresh-icon">🔄</span> Aggiorna dati
@@ -377,6 +377,7 @@ tr:hover td{background:var(--surface2)}
   <div class="nav-item" onclick="navigate('tipologie')" data-page="tipologie">🏷 Tipologie</div>
   <div class="nav-item" onclick="navigate('tassasoggiorno')" data-page="tassasoggiorno">🏛 Tassa di soggiorno</div>
   <div class="nav-item" onclick="navigate('sitoweb')" data-page="sitoweb">🌐 Sito web</div>
+  <div class="nav-item" onclick="navigate('concorrenti')" data-page="concorrenti">🏘 Concorrenti</div>
   <div class="nav-item" onclick="navigate('statistichesito')" data-page="statistichesito">📈 Statistiche sito</div>
   <div class="nav-section">Operativo</div>
   <div class="nav-item" onclick="navigate('biancheria')" data-page="biancheria">🧺 Biancheria</div>
@@ -455,6 +456,7 @@ tr:hover td{background:var(--surface2)}
   <div id="page-preventivi" class="page"></div>
   <div id="page-addebitiextra" class="page"></div>
   <div id="page-sitoweb" class="page"></div>
+  <div id="page-concorrenti" class="page"></div>
   <div id="page-housekeeping" class="page"></div>
   <div id="page-puliziamobile" class="page"></div>
   <div id="page-biancheria" class="page"></div>
@@ -548,11 +550,11 @@ const DB = {
     localStorage.setItem('pms_'+k,JSON.stringify(v));
   },
   getObj(k,def){
-    if ((k==='settings'||k==='corrispettivi'||k==='revenueConfig'||k==='categoryOrder'||k==='groupColors'||k==='hkData'||k==='regoleTipo'||k==='tassaSoggiornoDettaglio'||k==='ical_portals'||k==='guidaOspiti'||k==='eventiSito'||k==='livelliTariffari'||k==='gruppiInfo'||k==='utentiPermessi') && supabaseReady && _blobsReady[k]) return _blobsCache[k] || def;
+    if ((k==='settings'||k==='corrispettivi'||k==='revenueConfig'||k==='categoryOrder'||k==='groupColors'||k==='hkData'||k==='regoleTipo'||k==='tassaSoggiornoDettaglio'||k==='ical_portals'||k==='guidaOspiti'||k==='eventiSito'||k==='concorrenti'||k==='livelliTariffari'||k==='gruppiInfo'||k==='utentiPermessi') && supabaseReady && _blobsReady[k]) return _blobsCache[k] || def;
     try{return JSON.parse(localStorage.getItem('pms_'+k))||def;}catch{return def;}
   },
   setObj(k,v){
-    if ((k==='settings'||k==='corrispettivi'||k==='revenueConfig'||k==='categoryOrder'||k==='groupColors'||k==='hkData'||k==='regoleTipo'||k==='tassaSoggiornoDettaglio'||k==='ical_portals'||k==='guidaOspiti'||k==='eventiSito'||k==='livelliTariffari'||k==='gruppiInfo'||k==='utentiPermessi') && supabaseReady && _blobsReady[k]) { _blobsCache[k] = v; setTimeout(()=>syncBlobToSupabase(k, v),0); return; }
+    if ((k==='settings'||k==='corrispettivi'||k==='revenueConfig'||k==='categoryOrder'||k==='groupColors'||k==='hkData'||k==='regoleTipo'||k==='tassaSoggiornoDettaglio'||k==='ical_portals'||k==='guidaOspiti'||k==='eventiSito'||k==='concorrenti'||k==='livelliTariffari'||k==='gruppiInfo'||k==='utentiPermessi') && supabaseReady && _blobsReady[k]) { _blobsCache[k] = v; setTimeout(()=>syncBlobToSupabase(k, v),0); return; }
     localStorage.setItem('pms_'+k,JSON.stringify(v));
   }
 };
@@ -1203,14 +1205,14 @@ async function initSupabase() {
 
     // Impostazioni e Corrispettivi: tabella facoltativa "app_blobs" (un blocco unico di dati per chiave)
     try {
-      const {data:blobs, error:err8} = await supabaseClient.from('app_blobs').select('*').in('key', ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']);
+      const {data:blobs, error:err8} = await supabaseClient.from('app_blobs').select('*').in('key', ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','concorrenti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']);
       if (err8) throw err8;
       (blobs||[]).forEach(row => { _blobsCache[row.key] = row.data; _blobsReady[row.key] = true; });
       // Se una delle chiavi non esiste ancora su Supabase, la creiamo copiando quella locale attuale
       // (per storicoOspiti/messageTemplates/listinoAggiustamenti/listinoScostamenti/competitorStrutture/
       // competitorPrices: JSON.parse restituisce [] di default, non null, quindi il controllo "local"
       // richiede che l'array abbia almeno un elemento — altrimenti non c'è nulla da migrare)
-      for (const key of ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']) {
+      for (const key of ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','concorrenti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']) {
         if (!_blobsReady[key]) {
           const raw = localStorage.getItem('pms_'+key);
           const isArrayKey = (key==='storicoOspiti'||key==='messageTemplates'||key==='listinoAggiustamenti'||key==='listinoScostamenti'||key==='competitorStrutture'||key==='competitorPrices'||key==='blacklist'||key==='extras'||key==='movimenti'||key==='tassaSoggiornoLog'||key==='categoryOrder'||key==='ical_portals');
@@ -1223,7 +1225,7 @@ async function initSupabase() {
       }
     } catch (err8) {
       console.warn('Tabella app_blobs non disponibile — Impostazioni, Corrispettivi, Archivio storico ospiti, variazioni prezzo, scostamenti, Prezzo consigliato, Prezzi concorrenti e portali iCal restano locali su questo PC. Esegui lo script SQL aggiuntivo per attivarlo.', err8);
-      ['settings','corrispettivi','storicoOspiti','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo'].forEach(function(k){ _blobsReady[k] = false; });
+      ['settings','corrispettivi','storicoOspiti','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','concorrenti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo'].forEach(function(k){ _blobsReady[k] = false; });
     }
 
     // Tempo reale su tutte le tabelle — riattivato dopo l'upgrade a compute Micro (più risorse
@@ -1372,7 +1374,7 @@ function handleQuoteRealtimeChange(payload) {
 }
 function handleBlobRealtimeChange(payload) {
   const key = payload.eventType === 'DELETE' ? payload.old.key : payload.new.key;
-  if (['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo'].indexOf(key) < 0) return;
+  if (['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','concorrenti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo'].indexOf(key) < 0) return;
   if (payload.eventType === 'DELETE') { delete _blobsCache[key]; }
   else { _blobsCache[key] = payload.new.data; try { if (typeof AUDIT_BLOB !== 'undefined' && AUDIT_BLOB[key]) _auditBlobSnap[key] = JSON.stringify(payload.new.data); } catch (e) {} }
   if (key === 'settings') {
@@ -2286,7 +2288,7 @@ async function refreshDatiCorrenti() {
         r.forEach(b => { _roomBlocksCache[b.room_id+'|'+b.block_date] = true; });
       }));
       if (_blobsReady['settings'] || _blobsReady['corrispettivi'] || _blobsReady['storicoOspiti'] || _blobsReady['messageTemplates'] || _blobsReady['listinoAggiustamenti'] || _blobsReady['listinoScostamenti'] || _blobsReady['revenueConfig'] || _blobsReady['competitorStrutture'] || _blobsReady['competitorPrices'] || _blobsReady['blacklist'] || _blobsReady['extras'] || _blobsReady['movimenti'] || _blobsReady['tassaSoggiornoLog'] || _blobsReady['categoryOrder'] || _blobsReady['groupColors'] || _blobsReady['hkData'] || _blobsReady['regoleTipo'] || _blobsReady['tassaSoggiornoDettaglio'] || _blobsReady['ical_portals'] || _blobsReady['guidaOspiti']) {
-        jobs.push(supabaseClient.from('app_blobs').select('*').in('key', ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']).then(r => {
+        jobs.push(supabaseClient.from('app_blobs').select('*').in('key', ['settings','corrispettivi','storicoOspiti','messageTemplates','listinoAggiustamenti','listinoScostamenti','revenueConfig','competitorStrutture','competitorPrices','blacklist','extras','movimenti','tassaSoggiornoLog','categoryOrder','groupColors','hkData','regoleTipo','tassaSoggiornoDettaglio','ical_portals','guidaOspiti','eventiSito','concorrenti','livelliTariffari','listinoLivelli','listinoRegistro','otaCanali','manutenzione','fatture','utentiPermessi','gruppiInfo']).then(r => {
           (r.data||[]).forEach(row => { _blobsCache[row.key] = row.data; });
         }));
       }
@@ -11602,7 +11604,7 @@ function navigate(page){
     housekeeping:renderHousekeeping,previsionale:renderPrevisionale,cassaprev:renderPrevisioneCassa,report:renderReport,biancheria:renderBiancheria,
     extra:renderExtra,manutenzione:renderManutenzione,adempimenti:renderAdempimenti,reportpasti:renderReportPasti,
     blacklist:renderBlacklist,ical:renderIcal,impostazioni:renderImpostazioni,
-    salvataggio:renderSalvataggio,sitoweb:renderSitoWeb,utenti:renderGestioneUtenti,registro:renderRegistro,statistichesito:renderStatisticheSito
+    salvataggio:renderSalvataggio,sitoweb:renderSitoWeb,concorrenti:renderConcorrenti,utenti:renderGestioneUtenti,registro:renderRegistro,statistichesito:renderStatisticheSito
   };
   if(map[page]){
     try{
@@ -16024,7 +16026,7 @@ var PAGINE_PERMESSO = {
   corrispettivi:'corrispettivi', contidasaldare:'contidasaldare',
   listino:'listino', tipologie:'tipologie', tassasoggiorno:'tassasoggiorno', camere:'camere',
   manutenzione:'manutenzione',
-  extra:'extra', addebitiextra:'addebitiextra', adempimenti:'adempimenti', blacklist:'blacklist', ical:'ical', condizioni:'condizioni', guidaospiti:'guidaospiti', sitoweb:'sitoweb', statistichesito:'statistichesito',
+  extra:'extra', addebitiextra:'addebitiextra', adempimenti:'adempimenti', blacklist:'blacklist', ical:'ical', condizioni:'condizioni', guidaospiti:'guidaospiti', sitoweb:'sitoweb', concorrenti:'concorrenti', statistichesito:'statistichesito',
   impostazioni:'impostazioni', salvataggio:'salvataggio', utenti:'impostazioni',
 };
 var VOCI_PERMESSO = [
@@ -16064,6 +16066,7 @@ var VOCI_PERMESSO = [
   {k:'ical', l:'🔗 iCal/Portali'},
   {k:'condizioni', l:'📜 Condizioni'},
   {k:'sitoweb', l:'🌐 Sito web'},
+  {k:'concorrenti', l:'🏘 Concorrenti'},
   {k:'impostazioni', l:'⚙ Impostazioni'},
   {k:'salvataggio', l:'💾 Salvataggio'},
 ];
@@ -26753,6 +26756,113 @@ function evRender() {
     '</div></div>';
 }
 
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONCORRENTI — confronto prezzi con strutture vicine. Le strutture (nome + link OTA) e i prezzi li
+// inserisci tu; il PMS li confronta coi prezzi del tuo listino per le stesse date.
+// Dati: DB.getObj('concorrenti') = { strutture:[{id,nome,link,note}], rilevazioni:[{id,ci,notti,pax,rilevato,prezzi:{idStruttura:totale}}] }
+// ════════════════════════════════════════════════════════════════════════════
+function ccGet() { var d = DB.getObj('concorrenti', null); if (!d || typeof d !== 'object') d = {}; d.strutture = d.strutture || []; d.rilevazioni = d.rilevazioni || []; return d; }
+function ccLeggi() {
+  var d = ccGet(); if (!document.getElementById('cc-strutture')) return d;
+  d.strutture = [];
+  document.querySelectorAll('#cc-strutture [data-cs]').forEach(function(r) {
+    var g = function(n) { return r.querySelector('[data-f="' + n + '"]').value.trim(); };
+    d.strutture.push({ id: r.getAttribute('data-cs'), nome: g('nome'), link: g('link'), note: g('note') });
+  });
+  var ril = {}; ccGet().rilevazioni.forEach(function(x) { ril[x.id] = x; });
+  d.rilevazioni = [];
+  document.querySelectorAll('#cc-ril [data-cr]').forEach(function(r) {
+    var id = r.getAttribute('data-cr'), vecchio = ril[id] || {};
+    var x = { id: id, ci: r.querySelector('[data-f="ci"]').value, notti: parseInt(r.querySelector('[data-f="notti"]').value) || 1, pax: parseInt(r.querySelector('[data-f="pax"]').value) || 2, rilevato: vecchio.rilevato || today(), prezzi: {} };
+    r.querySelectorAll('[data-p]').forEach(function(i) { var v = parseFloat(String(i.value).replace(',', '.')); if (!isNaN(v) && v > 0) x.prezzi[i.getAttribute('data-p')] = v; });
+    d.rilevazioni.push(x);
+  });
+  return d;
+}
+function ccUrl(link, ci, notti, pax) {
+  link = (link || '').trim(); if (!/^https?:\/\//i.test(link)) return '';
+  if (!ci) return link;
+  try {
+    var u = new URL(link), co = addDays(ci, notti || 1);
+    if (/booking\.com/i.test(u.hostname)) { u.searchParams.set('checkin', ci); u.searchParams.set('checkout', co); u.searchParams.set('group_adults', pax || 2); u.searchParams.set('no_rooms', 1); }
+    else if (/airbnb\./i.test(u.hostname)) { u.searchParams.set('check_in', ci); u.searchParams.set('check_out', co); u.searchParams.set('adults', pax || 2); }
+    return u.toString();
+  } catch (e) { return link; }
+}
+function ccMioPrezzo(ci, notti, pax) {
+  var rooms = DB.get('rooms') || []; if (!rooms.length || !ci) return 0;
+  var room = rooms.filter(function(r) { return !r.fuoriServizio; })[0] || rooms[0], tot = 0;
+  for (var i = 0; i < notti; i++) { var p = getPrezzoListino(room.id, Math.min(pax, parseInt(room.capacity || room.maxGuests || 4) || 4), addDays(ci, i), 'standard'); if (!p) return 0; tot += p; }
+  return Math.round(tot);
+}
+function ccSalva() { DB.setObj('concorrenti', ccLeggi()); ccCalcola(); }
+function ccCalcola() {
+  var d = ccLeggi();
+  d.rilevazioni.forEach(function(x) {
+    var vals = Object.keys(x.prezzi).map(function(k) { return x.prezzi[k]; }), set = function(s, t, c) { var el = document.getElementById(s + x.id); if (el) { el.textContent = t; el.style.color = c || ''; } };
+    var mio = ccMioPrezzo(x.ci, x.notti, x.pax);
+    set('cc-mio-', mio ? '€ ' + mio : '—');
+    if (!vals.length) { set('cc-min-', '—'); set('cc-med-', '—'); set('cc-max-', '—'); set('cc-diff-', '—'); return; }
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals), med = Math.round(vals.reduce(function(a, b) { return a + b; }, 0) / vals.length);
+    set('cc-min-', '€ ' + min); set('cc-med-', '€ ' + med); set('cc-max-', '€ ' + max);
+    if (mio) { var df = Math.round((mio - med) / med * 100); set('cc-diff-', (df > 0 ? '+' : '') + df + '% vs media', Math.abs(df) <= 5 ? 'var(--green)' : (df > 0 ? 'var(--red)' : '#b45309')); } else set('cc-diff-', '—');
+  });
+}
+function ccAggiungiStruttura() { var d = ccLeggi(); d.strutture.push({ id: 's' + Date.now(), nome: '', link: '', note: '' }); DB.setObj('concorrenti', d); renderConcorrenti(); }
+function ccEliminaStruttura(id) {
+  if (!confirm('Eliminare questa struttura e i suoi prezzi?')) return;
+  var d = ccLeggi(); d.strutture = d.strutture.filter(function(s) { return s.id !== id; }); d.rilevazioni.forEach(function(x) { delete x.prezzi[id]; });
+  DB.setObj('concorrenti', d); renderConcorrenti();
+}
+function ccAggiungiRilevazione(copiaDa) {
+  var d = ccLeggi(), base = copiaDa ? d.rilevazioni.filter(function(x) { return x.id === copiaDa; })[0] : null;
+  d.rilevazioni.push({ id: 'r' + Date.now(), ci: base ? base.ci : addDays(today(), 14), notti: base ? base.notti : 2, pax: base ? base.pax : 2, rilevato: today(), prezzi: {} });
+  DB.setObj('concorrenti', d); renderConcorrenti();
+}
+function ccEliminaRilevazione(id) {
+  if (!confirm('Eliminare questa rilevazione?')) return;
+  var d = ccLeggi(); d.rilevazioni = d.rilevazioni.filter(function(x) { return x.id !== id; }); DB.setObj('concorrenti', d); renderConcorrenti();
+}
+function renderConcorrenti() {
+  var d = ccGet(), st = d.strutture;
+  var inp = 'style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px"';
+  var ril = d.rilevazioni.slice().sort(function(a, b) { return (a.ci || '').localeCompare(b.ci || '') || (a.rilevato || '').localeCompare(b.rilevato || ''); });
+  var html = '<div class="page-header"><div><div class="page-title">🏘 Concorrenti</div><div class="page-subtitle">Confronta i tuoi prezzi con quelli delle strutture vicine, per le stesse date</div></div></div><div class="page-content">' +
+    '<div class="card" style="max-width:900px"><div class="card-header"><span class="card-title">1. Strutture da seguire</span></div><div class="modal-body">' +
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Scrivi il nome e incolla il link della struttura su Booking (o Airbnb, ecc.). Con il link, il PMS apre la pagina già con le date giuste.</div>' +
+    '<div id="cc-strutture">' + (st.length ? st.map(function(s) {
+      return '<div data-cs="' + evEsc(s.id) + '" style="display:grid;grid-template-columns:1.3fr 2fr 1fr auto auto;gap:6px;margin-bottom:6px;align-items:center">' +
+        '<input type="text" data-f="nome" value="' + evEsc(s.nome) + '" placeholder="Nome struttura" onchange="ccSalva();renderConcorrenti()" ' + inp + '>' +
+        '<input type="text" data-f="link" value="' + evEsc(s.link) + '" placeholder="Link Booking / Airbnb / sito" onchange="ccSalva()" ' + inp + '>' +
+        '<input type="text" data-f="note" value="' + evEsc(s.note) + '" placeholder="Note (es. 3★, 500 m)" onchange="ccSalva()" ' + inp + '>' +
+        '<a class="btn btn-sm" href="' + evEsc(/^https?:\/\//i.test(s.link) ? s.link : '#') + '" target="_blank" rel="noopener">↗</a>' +
+        '<button class="btn btn-sm" style="color:var(--red)" onclick="ccEliminaStruttura(\'' + s.id + '\')">✕</button></div>';
+    }).join('') : '<div style="color:var(--text3);font-size:13px;padding:6px 0">Nessuna struttura: aggiungine una.</div>') + '</div>' +
+    '<button class="btn btn-sm" onclick="ccAggiungiStruttura()">+ Aggiungi struttura</button></div></div>' +
+    '<div class="card" style="margin-top:16px"><div class="card-header"><span class="card-title">2. Prezzi per date</span></div><div class="modal-body">' +
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Ogni riga è un soggiorno (data di arrivo, notti, persone). Premi ↗ sotto il nome della struttura: si apre il portale con quelle date. Scrivi il <strong>prezzo totale del soggiorno</strong>. A destra vedi il tuo prezzo del listino e il confronto. Per seguire l\'andamento, usa <strong>⧉ Ripeti</strong> in un altro giorno: resta il confronto con la rilevazione precedente.</div>' +
+    (st.length && ril.length ? '' : '') +
+    '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12.5px;min-width:100%"><thead><tr style="color:var(--text3);font-size:11px"><td style="padding:4px">Arrivo</td><td>Notti</td><td>Pers.</td>' +
+    st.map(function(s) { return '<td style="padding:4px;min-width:110px">' + evEsc(s.nome || 'Struttura') + '</td>'; }).join('') +
+    '<td style="padding:4px;font-weight:700">Il mio prezzo</td><td>Min</td><td>Media</td><td>Max</td><td>Confronto</td><td></td></tr></thead><tbody id="cc-ril">' +
+    ril.map(function(x) {
+      return '<tr data-cr="' + x.id + '" style="border-top:1px solid var(--border)">' +
+        '<td style="padding:4px"><input type="date" data-f="ci" value="' + evEsc(x.ci) + '" onchange="ccSalva();renderConcorrenti()" ' + inp + ' style="width:135px;padding:5px;border:1px solid var(--border2);border-radius:6px"><div style="font-size:10px;color:var(--text3)">rilevato il ' + (x.rilevato ? fmtDate(x.rilevato) : '') + '</div></td>' +
+        '<td style="padding:4px"><input type="number" min="1" data-f="notti" value="' + x.notti + '" onchange="ccSalva();renderConcorrenti()" style="width:52px;padding:5px;border:1px solid var(--border2);border-radius:6px"></td>' +
+        '<td style="padding:4px"><input type="number" min="1" data-f="pax" value="' + x.pax + '" onchange="ccSalva();renderConcorrenti()" style="width:52px;padding:5px;border:1px solid var(--border2);border-radius:6px"></td>' +
+        st.map(function(s) {
+          var u = ccUrl(s.link, x.ci, x.notti, x.pax);
+          return '<td style="padding:4px"><div style="display:flex;gap:3px;align-items:center"><span style="color:var(--text3)">€</span><input type="number" min="0" step="1" data-p="' + s.id + '" value="' + (x.prezzi[s.id] || '') + '" onchange="ccSalva()" style="width:70px;padding:5px;border:1px solid var(--border2);border-radius:6px">' + (u ? '<a href="' + evEsc(u) + '" target="_blank" rel="noopener" title="Apri con queste date" style="text-decoration:none">↗</a>' : '') + '</div></td>';
+        }).join('') +
+        '<td style="padding:4px;font-weight:700" id="cc-mio-' + x.id + '">—</td><td id="cc-min-' + x.id + '">—</td><td id="cc-med-' + x.id + '">—</td><td id="cc-max-' + x.id + '">—</td><td style="font-weight:700;white-space:nowrap" id="cc-diff-' + x.id + '">—</td>' +
+        '<td style="white-space:nowrap"><button class="btn btn-sm" title="Ripeti questa rilevazione oggi" onclick="ccAggiungiRilevazione(\'' + x.id + '\')">⧉ Ripeti</button> <button class="btn btn-sm" style="color:var(--red)" onclick="ccEliminaRilevazione(\'' + x.id + '\')">✕</button></td></tr>';
+    }).join('') + '</tbody></table></div>' +
+    '<div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="ccAggiungiRilevazione()">+ Nuova rilevazione (date)</button></div></div></div></div>';
+  document.getElementById('page-concorrenti').innerHTML = html;
+  ccCalcola();
+}
+
 function swGalleryRowHTML() {
   var imgs = window._swGallery || [];
   var thumbs = imgs.map(function(url, i){
@@ -31296,6 +31406,7 @@ function renderPage(page) {
     reportpasti: renderReportPasti,
     blacklist: renderBlacklist,
     sitoweb: renderSitoWeb,
+    concorrenti: renderConcorrenti,
     statistichesito: renderStatisticheSito,
     planner: renderPlanner, 'arrivi-partenze': renderArriviPartenze,
     checkineffettuati: renderCheckinEffettuati, checkouteffettuati: renderCheckoutEffettuati,
